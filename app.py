@@ -79,7 +79,7 @@ def main():
         # 目的地
         destination = st.text_input(
             "目的地",
-            placeholder="地点例如：北京、青岛海边、云南大理",
+            placeholder="例如：北京、青岛海边、云南大理",
             help="可以输入城市名或具体景区"
         )
         
@@ -324,3 +324,4 @@ def show_export_options(content, destination):
 
 if __name__ == "__main__":
     main()
+#test 
