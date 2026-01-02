@@ -3,11 +3,13 @@ import requests
 import json
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
+from utils.prompt_templates import build_travel_prompt
+from utils.response_parser import parse_travel_plan_response
 
 load_dotenv()
 
 class ZhipuAIClient:
-    """智谱AI API客户端"""
+    """智谱AI AFPI客户端"""
     
     def __init__(self):
         self.api_key = os.getenv("ZHIPU_API_KEY")
@@ -52,16 +54,31 @@ class ZhipuAIClient:
             return f"🔌 请求失败：{str(e)}"
     
     def generate_travel_plan(self, user_input: Dict[str, Any]) -> Dict[str, Any]:
-        """生成旅行计划"""
-        prompt = self._build_travel_prompt(user_input)
+        """生成旅行计划（基于结构化 Prompt）"""
+    
+    # 1. 构建 Prompt（来自独立模块）
+        prompt = build_travel_prompt(user_input)
+    
+    # 2. 调用大模型
         response = self.generate_response(prompt)
-        
+    
+        try:
+            parsed = parse_travel_plan_response(response)
+            formatted_plan = parsed
+        except Exception as e:
+            formatted_plan = {
+                "overview": "生成失败，请重试",
+                "daily_plan": [],
+                "budget_advice": "",
+                "travel_story": ""
+        }
+
         return {
             "prompt": prompt,
             "raw_response": response,
-            "formatted_plan": self._parse_response(response)
+            "formatted_plan": formatted_plan
         }
-    
+
     def _build_travel_prompt(self, user_input: Dict[str, Any]) -> str:
         """构建旅行规划提示词"""
         destination = user_input.get("destination", "")
