@@ -1,4 +1,9 @@
 import requests
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+AMAP_KEY = os.getenv("AMAP_API_KEY", "fd3bde69015215f85200247b34e4da5b")
 
 AMAP_KEY = "fd3bde69015215f85200247b34e4da5b"
 
@@ -40,38 +45,89 @@ def nearby_search(keywords: str, location: str, radius: int = 3000, types: str =
     response = requests.get(url, params=params, timeout=10)
     return response.json()
 
-def route_planning(origin: str, destination: str):
-    """路线规划（驾车）"""
+def walking_route_planning(origin: str, destination: str):
+    """
+    步行路线规划
+    """
+    url = "https://restapi.amap.com/v3/direction/walking"
+    params = {
+        "key": AMAP_KEY,
+        "origin": origin,
+        "destination": destination,
+        "extensions": "all"
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        
+        if data.get("status") == "1":
+            path = data.get("route", {}).get("paths", [])
+            if path:
+                steps = path[0].get("steps", [])
+                all_coords = []
+                
+                for step in steps:
+                    polyline = step.get("polyline", "")
+                    if polyline:
+                        coords = polyline.split(";")
+                        for coord in coords:
+                            if coord:
+                                lng, lat = map(float, coord.split(","))
+                                all_coords.append([lat, lng])  # Folium格式
+                
+                return {
+                    "status": "success",
+                    "distance": path[0].get("distance", 0),
+                    "duration": path[0].get("duration", 0),
+                    "coordinates": all_coords
+                }
+        
+        return {"status": "error", "message": "路线规划失败"}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+def driving_route_planning(origin: str, destination: str):
+    """
+    驾车路线规划
+    """
     url = "https://restapi.amap.com/v3/direction/driving"
     params = {
         "key": AMAP_KEY,
-        "origin": origin,        # "经度,纬度"
+        "origin": origin,
         "destination": destination,
-        "extensions": "base"
+        "extensions": "all",
+        "strategy": 0
     }
-    response = requests.get(url, params=params, timeout=10)
-    return response.json()
-
-# 示例
-if __name__ == "__main__":
-    # 1. 获取城市坐标
-    geo_res = geocode("邵阳")
-    location = geo_res["geocodes"][0]["location"]
-    print("城市坐标:", location)
     
-    # 2. 周边景点搜索
-    spots = nearby_search("景点", location)
-    for poi in spots["pois"][:5]:
-        print(poi["name"], poi["address"], poi["location"])
-    
-    # 3. 酒店搜索
-    hotels = nearby_search("酒店", location, types="110000")
-    for hotel in hotels["pois"][:5]:
-        print(hotel["name"], hotel["address"], hotel["location"])
-    
-    # 4. 路线规划示例
-    if len(spots["pois"]) > 1:
-        origin = spots["pois"][0]["location"]
-        destination = spots["pois"][1]["location"]
-        route = route_planning(origin, destination)
-        print("路线距离:", route["route"]["paths"][0]["distance"], "米")
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        data = response.json()
+        
+        if data.get("status") == "1":
+            path = data.get("route", {}).get("paths", [])
+            if path:
+                steps = path[0].get("steps", [])
+                all_coords = []
+                
+                for step in steps:
+                    polyline = step.get("polyline", "")
+                    if polyline:
+                        coords = polyline.split(";")
+                        for coord in coords:
+                            if coord:
+                                lng, lat = map(float, coord.split(","))
+                                all_coords.append([lat, lng])
+                
+                return {
+                    "status": "success",
+                    "distance": path[0].get("distance", 0),
+                    "duration": path[0].get("duration", 0),
+                    "coordinates": all_coords
+                }
+        
+        return {"status": "error", "message": "驾车路线规划失败"}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
