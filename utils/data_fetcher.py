@@ -131,3 +131,53 @@ def driving_route_planning(origin: str, destination: str):
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
+def search_real_hotels(location, radius=5000):
+    """
+    在高德地图中搜索真实酒店
+    location: "lng,lat"
+    """
+    url = "https://restapi.amap.com/v3/place/around"
+    params = {
+        "key": AMAP_KEY,
+        "location": location,
+        "keywords": "酒店",
+        "types": "110100",  # 宾馆酒店
+        "radius": radius,
+        "offset": 10,
+        "page": 1
+    }
+    return requests.get(url, params=params, timeout=10).json()    
+def parse_hotels(poi_data, city_center):
+    hotels = []
+
+    for h in poi_data.get("pois", []):
+        hotels.append({
+            "name": h.get("name"),
+            "address": h.get("address", "暂无地址"),
+            "location": h.get("location"),   # lng,lat
+            "type": h.get("type", ""),
+            "tel": h.get("tel", ""),
+            "distance": int(h.get("distance", 9999))
+        })
+    return hotels
+def classify_hotel(hotel):
+    t = hotel["type"]
+    if "经济" in t:
+        return "经济型"
+    if "高档" in t or "星级" in t:
+        return "豪华型"
+    return "舒适型"
+def budget_match(hotel_level, user_budget):
+    if user_budget == "经济型":
+        return hotel_level != "豪华型"
+    if user_budget == "豪华型":
+        return hotel_level != "经济型"
+    return True
+def estimate_price(level):
+    if level == "经济型":
+        return "¥200–350 / 晚"
+    if level == "豪华型":
+        return "¥600–900 / 晚"
+    return "¥350–600 / 晚"
+
+
