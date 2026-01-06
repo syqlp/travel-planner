@@ -103,15 +103,14 @@ class GaodeMapClient:
         except Exception as e:
             return {"status": "error", "message": f"请求异常: {str(e)}"}
     
-    def plan_route(self, origin, destination, city=None):
+    def plan_route_enhanced(self, origin, destination, city=None):
         """
-        规划公共交通路线
-        Returns: 详细的路线步骤，包括步行、地铁、公交等
+        增强版路线规划，返回更详细的信息
         """
         params = {
             'key': self.api_key,
-            'origin': origin,  # "lng,lat"
-            'destination': destination,  # "lng,lat"
+            'origin': origin,
+            'destination': destination,
             'city': city or '',
             'output': 'json',
             'extensions': 'all',
@@ -122,18 +121,121 @@ class GaodeMapClient:
             response = requests.get(self.base_urls["route"], params=params, timeout=10)
             data = response.json()
             
+            # 添加调试信息
+            print(f"[DEBUG] 路线规划请求: {params}")
+            print(f"[DEBUG] 响应状态: {data.get('status')}, 信息: {data.get('info')}")
+            
             if data.get('status') == '1' and data.get('route'):
                 route = data['route']
                 paths = route.get('paths', [])
                 
                 if paths:
-                    best_path = paths[0]  # 取最优路线
-                    return self._parse_route_details(best_path)
-                
-            return {"status": "error", "message": "未找到路线"}
+                    best_path = paths[0]
+                    return self._parse_enhanced_route_details(best_path)
+            
+            # 如果没找到公共交通，尝试步行路线
+            return self._get_walking_route(origin, destination)
                 
         except Exception as e:
-            return {"status": "error", "message": f"请求异常: {str(e)}"}
+            print(f"[ERROR] 路线规划异常: {str(e)}")
+            return self._get_walking_route(origin, destination)
+
+    def _parse_enhanced_route_details(self, path):
+        """解析增强版路线详情"""
+        distance = path.get('distance', 0)  # 总距离（米）
+        duration = path.get('duration', 0)  # 总时间（秒）
+        
+        # 统计各种交通方式
+        walking_distance = 0
+        transit_distance = 0
+        taxi_distance = 0
+        steps_details = []
+        
+        for segment in path.get('steps', []):
+            instruction = segment.get('instruction', '')
+            step_distance = segment.get('distance', 0)
+            step_duration = segment.get('duration', 0)
+            
+            # 判断交通方式
+            vehicle_info = self._parse_vehicle_type(segment)
+            vehicle_type = vehicle_info.get('type', 'other')
+            
+            if vehicle_type == 'walking':
+                walking_distance += step_distance
+            elif vehicle_type in ['subway', 'bus']:
+                transit_distance += step_distance
+            elif vehicle_type == 'taxi':
+                taxi_distance += step_distance
+            
+            steps_details.append({
+                'instruction': instruction,
+                'distance': step_distance,
+                'duration': step_duration,
+                'vehicle': vehicle_info,
+                'action': segment.get('action', ''),
+                'road': segment.get('road', '')
+            })
+        
+        # 计算步行时间（假设步行速度5km/h）
+        walking_time_minutes = (walking_distance / 5000) * 60 if walking_distance > 0 else 0
+        
+        return {
+            "status": "success",
+            "total_distance": distance,
+            "total_duration": duration,
+            "walking_distance": walking_distance,
+            "transit_distance": transit_distance,
+            "taxi_distance": taxi_distance,
+            "walking_time_minutes": walking_time_minutes,
+            "steps": steps_details,
+            "taxi_cost": path.get('taxi_cost', 0),
+            "has_subway": any(step['vehicle'].get('type') == 'subway' for step in steps_details),
+            "has_bus": any(step['vehicle'].get('type') == 'bus' for step in steps_details)
+        }
+
+    def _get_walking_route(self, origin, destination):
+        """获取步行路线（降级方案）"""
+        try:
+            # 计算直线距离
+            from math import radians, cos, sin, asin, sqrt
+            
+            # 解析坐标
+            lng1, lat1 = map(float, origin.split(','))
+            lng2, lat2 = map(float, destination.split(','))
+            
+            # 转换为弧度
+            lng1, lat1, lng2, lat2 = map(radians, [lng1, lat1, lng2, lat2])
+            
+            # haversine公式计算距离
+            dlng = lng2 - lng1 
+            dlat = lat2 - lat1 
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlng/2)**2
+            c = 2 * asin(sqrt(a)) 
+            r = 6371  # 地球平均半径，单位为公里
+            
+            distance_meters = c * r * 1000
+            
+            # 估算步行时间（平均步行速度5km/h）
+            walking_time_minutes = (distance_meters / 5000) * 60
+            
+            return {
+                "status": "success",
+                "total_distance": distance_meters,
+                "total_duration": walking_time_minutes * 60,
+                "walking_distance": distance_meters,
+                "walking_time_minutes": walking_time_minutes,
+                "steps": [{
+                    "instruction": f"从起点步行到终点，直线距离约{distance_meters/1000:.1f}公里",
+                    "distance": distance_meters,
+                    "duration": walking_time_minutes * 60,
+                    "vehicle": {"type": "walking", "icon": "🚶", "name": "步行"},
+                    "is_estimated": True
+                }],
+                "is_estimated": True,
+                "message": "此为直线距离估算，实际步行距离可能更长"
+            }
+        except Exception as e:
+            return {"status": "error", "message": f"无法规划路线: {str(e)}"}
     
     def _parse_route_details(self, path):
         """解析路线详细信息"""

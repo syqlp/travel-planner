@@ -18,6 +18,7 @@ from utils.gaode_route_display import GaodeRouteDisplay
 from utils.gaode_hotel_display import GaodeHotelDisplay
 
 from utils.gaode_restaurant_display import GaodeRestaurantDisplay
+from utils.gaode_route_planner import GaodeRoutePlanner
 # 页面配置
 st.set_page_config(
     page_title="个性化旅行规划助手",
@@ -351,172 +352,7 @@ def generate_travel_plan(user_input):
     }
     
 # ========== 结果显示 ==========
-def display_travel_map(generation_result, user_input):
-    """显示增强版旅行地图"""
-    st.markdown("---")
-    st.markdown("## 🗺️ 智能路线规划")
-    
-    # 确保有景点数据
-    if 'attractions_data' not in generation_result or not generation_result['attractions_data']:
-        st.warning("暂无景点数据，无法规划路线")
-        # 显示简单的城市地图
-        gaode_client = get_gaode_client()
-        map_image = gaode_client.get_static_map(
-            location=generation_result['city_location'],
-            zoom=12,
-            size="800*400"
-        )
-        if map_image:
-            st.markdown(f'<img src="{map_image}" style="width: 100%; border-radius: 10px;">', 
-                      unsafe_allow_html=True)
-        return
-    
-    attractions = generation_result['attractions_data'][:6]  # 最多6个景点
-    
-    if len(attractions) < 2:
-        st.warning("至少需要2个景点才能规划路线")
-        # 显示景点位置
-        gaode_client = get_gaode_client()
-        markers = [{"location": attractions[0].get('location'), "label": "A"}]
-        map_image = gaode_client.get_static_map(
-            location=generation_result['city_location'],
-            zoom=13,
-            size="800*400",
-            markers=markers
-        )
-        if map_image:
-            st.markdown(f'<img src="{map_image}" style="width: 100%; border-radius: 10px;">', 
-                      unsafe_allow_html=True)
-        return
-    
-    # 交通方式选择 - 简化版本
-    travel_mode = st.selectbox(
-        "选择路线规划方式:",
-        ["🚇 智能公共交通", "🚶 纯步行路线", "🚗 驾车路线"],
-        key="travel_mode"
-    )
-    
-    # 获取高德客户端
-    gaode_client = get_gaode_client()
-    
-    # 显示路线规划
-    st.markdown("### 🗺️ 路线规划详情")
-    
-    # 创建选项卡：地图和路线详情
-    tab1, tab2 = st.tabs(["🗺️ 地图展示", "📋 路线详情"])
-    
-    with tab1:
-        # 显示多点路线规划
-        if travel_mode == "🚇 智能公共交通":
-            st.info("🎯 系统将为您规划包含步行、地铁、公交的智能路线")
-            
-            # 显示完整游览路线
-            from utils.gaode_route_display import GaodeRouteDisplay
-            
-            # 先测试两个景点之间的路线
-            if len(attractions) >= 2:
-                origin = attractions[0].get('location')
-                destination = attractions[1].get('location')
-                
-                # 获取路线规划
-                route_result = gaode_client.plan_route(
-                    origin=origin,
-                    destination=destination,
-                    city=user_input['destination']
-                )
-                
-                if route_result.get("status") == "success":
-                    # 显示路线步骤
-                    st.markdown("#### 🚶 路线步骤")
-                    total_distance = route_result.get("total_distance", 0)
-                    total_duration = route_result.get("total_duration", 0)
-                    
-                    st.metric("总距离", f"{total_distance/1000:.1f}公里")
-                    st.metric("预计时间", f"{total_duration/60:.0f}分钟")
-                    
-                    for i, step in enumerate(route_result.get("steps", [])[:5]):  # 只显示前5步
-                        with st.expander(f"第{i+1}步: {step.get('instruction', '')[:50]}...", expanded=(i<2)):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.write(f"**方式**: {step.get('vehicle', {}).get('icon', '📍')} {step.get('vehicle', {}).get('name', '其他')}")
-                            with col2:
-                                st.write(f"**距离**: {step.get('distance', 0)}米")
-                            if step.get('road'):
-                                st.caption(f"途径: {step.get('road')}")
-                else:
-                    st.warning(f"路线规划失败: {route_result.get('message')}")
-        
-        elif travel_mode == "🚶 纯步行路线":
-            st.info("🚶 为您规划步行游览路线")
-            
-            # 显示景点之间的步行建议
-            st.markdown("#### 👣 步行游览建议")
-            st.write("1. 建议从最近的景点开始游览")
-            st.write(f"2. 共{len(attractions)}个景点，步行游览约需{len(attractions)*30}分钟")
-            st.write("3. 注意景点之间的实际距离，合理安排休息")
-            
-        elif travel_mode == "🚗 驾车路线":
-            st.info("🚗 为您规划驾车游览路线")
-            
-            # 显示驾车建议
-            st.markdown("#### 🚗 驾车游览建议")
-            st.write("1. 建议使用导航APP实时规划路线")
-            st.write("2. 注意景点附近的停车场")
-            st.write("3. 避开高峰时段出行")
-        
-        # 显示地图
-        st.markdown("### 🗺️ 目的地地图")
-        
-        # 准备标记点
-        markers = []
-        for i, attraction in enumerate(attractions[:5]):
-            markers.append({
-                "location": attraction.get('location'),
-                "label": chr(65 + i)  # A, B, C...
-            })
-        
-        # 获取静态地图
-        map_image = gaode_client.get_static_map(
-            location=generation_result['city_location'],
-            zoom=13,
-            size="800*500",
-            markers=markers
-        )
-        
-        if map_image:
-            st.markdown(f'<img src="{map_image}" style="width: 100%; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">', 
-                      unsafe_allow_html=True)
-            
-            # 显示图例
-            legend_text = "📍 地图标记："
-            for i, attraction in enumerate(attractions[:5]):
-                legend_text += f" {chr(65 + i)}={attraction.get('name', f'景点{i+1}')[:8]}"
-                if i < 4:
-                    legend_text += ","
-            st.caption(legend_text)
-    
-    with tab2:
-        # 显示景点列表和详细信息
-        st.markdown("#### 📋 景点列表")
-        for i, attraction in enumerate(attractions):
-            with st.expander(f"{chr(65 + i)}. {attraction.get('name')}", expanded=(i<2)):
-                col1, col2 = st.columns(2)
-                with col1:
-                    if attraction.get('rating', 0) > 0:
-                        st.write(f"**评分**: ⭐ {attraction.get('rating')}")
-                    if attraction.get('address'):
-                        st.write(f"**地址**: {attraction.get('address')}")
-                with col2:
-                    if attraction.get('type'):
-                        st.write(f"**类型**: {attraction.get('type')}")
-                    if attraction.get('detail_url'):
-                        st.markdown(f"[📍 查看详情]({attraction.get('detail_url')})", unsafe_allow_html=True)
-        
-        # 提供优化建议
-        st.markdown("#### 💡 游览优化建议")
-        st.write("1. **时间安排**: 建议上午游览2-3个景点，下午游览2-3个景点")
-        st.write("2. **餐饮安排**: 中午可在景点附近用餐，晚上返回酒店附近")
-        st.write("3. **交通建议**: 使用公共交通更便捷，避免停车问题")
+
 def display_real_locations(generation_result):
     """显示真实地点"""
     if generation_result.get('real_attractions') or generation_result.get('real_restaurants'):
@@ -566,29 +402,6 @@ def display_detailed_plan(plan):
     if "travel_story" in plan and plan["travel_story"]:
         st.markdown("### 📖 旅行叙事")
         st.markdown(plan.get("travel_story", ""))
-
-# 显示地图
-def display_travel_map(generation_result, user_input):
-    """显示增强版旅行地图"""
-    st.markdown("---")
-    st.markdown("## 🗺️ 智能路线规划")
-    
-    # 交通方式选择
-    travel_mode = st.radio(
-        "选择交通方式:",
-        ["🚶 纯步行", "🚇 公共交通(地铁+公交)", "🚗 驾车"],
-        index=1,
-        horizontal=True
-    )
-    
-    mode_map = {
-        "🚶 纯步行": "walking",
-        "🚇 公共交通(地铁+公交)": "transit",
-        "🚗 驾车": "driving"
-    }
-    
-    mode_key = mode_map[travel_mode]
-    
 
 
 def display_hotel_recommendations(city_name, city_location, user_budget):
@@ -677,7 +490,78 @@ def show_export_options(plan_content, destination):
         if st.button("📋 复制到剪贴板"):
             st.code(text_content[:500] + "..." if len(text_content) > 500 else text_content)
             st.success("请手动选择并复制上述内容 (Ctrl+C)")
-
+def display_ai_route_planning(generation_result, user_input):
+    """显示AI智能路线规划"""
+    st.markdown("---")
+    st.markdown("## 🗺️ AI智能路线规划")
+    
+    # 检查是否有景点数据
+    attractions = generation_result.get('attractions_data', [])
+    if len(attractions) < 2:
+        st.warning("至少需要2个景点才能进行路线规划")
+        
+        # 显示简单地图
+        gaode_client = get_gaode_client()
+        map_image = gaode_client.get_static_map(
+            location=generation_result['city_location'],
+            zoom=12,
+            size="800*400"
+        )
+        if map_image:
+            st.markdown(f'<img src="{map_image}" style="width: 100%; border-radius: 10px;">', 
+                      unsafe_allow_html=True)
+        return
+    
+    # 获取高德客户端
+    gaode_client = get_gaode_client()
+    
+    # 显示AI推荐的游览顺序和路线
+    GaodeRoutePlanner.display_ai_route_plan(
+        generation_result=generation_result,
+        city_name=user_input['destination'],
+        gaode_client=gaode_client
+    )
+    
+    # 显示地图
+    st.markdown("### 🗺️ 景点地图")
+    
+    # 准备标记点
+    markers = []
+    ordered_attractions = sorted(attractions, key=lambda x: x.get('rating', 0), reverse=True)
+    
+    for i, attraction in enumerate(ordered_attractions[:6]):
+        location = attraction.get('location')
+        if location:
+            markers.append({
+                "location": location,
+                "label": str(i+1)  # 1, 2, 3...
+            })
+    
+    if markers:
+        map_image = gaode_client.get_static_map(
+            location=generation_result['city_location'],
+            zoom=13,
+            size="800*500",
+            markers=markers
+        )
+        
+        if map_image:
+            st.markdown(f'<img src="{map_image}" style="width: 100%; border-radius: 10px;">', 
+                      unsafe_allow_html=True)
+            
+            # 显示图例
+            st.markdown("**📍 地图标记（按推荐顺序）:**")
+            cols = st.columns(3)
+            for i, attraction in enumerate(ordered_attractions[:6]):
+                with cols[i % 3]:
+                    st.write(f"**{i+1}.** {attraction.get('name', f'景点{i+1}')[:12]}")
+    
+    # 显示步行方案
+    GaodeRoutePlanner.display_simple_walking_route(
+        attractions=attractions,
+        city_name=user_input['destination'],
+        gaode_client=gaode_client
+    )
 # ========== 主函数 ==========
 # ========== 主函数 ==========
 def main():
@@ -739,7 +623,7 @@ def display_results(generation_result, user_input):
     display_detailed_plan(plan)
     
     # 显示地图和路线规划
-    display_travel_map(generation_result, user_input)
+    display_ai_route_planning(generation_result, user_input)
     
     # 显示真实地点
     display_real_locations(generation_result)
