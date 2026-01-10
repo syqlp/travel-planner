@@ -2,8 +2,7 @@
 import streamlit as st
 import json
 import os
-import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from streamlit_folium import st_folium
 
 # 导入工具模块
@@ -19,6 +18,9 @@ from utils.gaode_hotel_display import GaodeHotelDisplay
 
 from utils.gaode_restaurant_display import GaodeRestaurantDisplay
 from utils.gaode_route_planner import GaodeRoutePlanner
+
+from utils.weather_display import WeatherDisplay
+from utils.weather_service_pro import QWeatherService
 # 页面配置
 st.set_page_config(
     page_title="个性化旅行规划助手",
@@ -160,6 +162,7 @@ def get_client():
     return ZhipuAIClient()
     
 #保存行程（json格式保存）
+
 def save_plan_to_file(plan_data, destination):
     """保存行程到文件"""
     try:
@@ -189,6 +192,43 @@ def render_sidebar():
         with col2:
             people = st.number_input("出行人数", 1, 20, 2)
         
+        # 添加出行日期选择
+        st.markdown("---")
+        st.markdown("### 📅 出行日期")
+        
+        today = datetime.now().date()
+        col_date1, col_date2 = st.columns(2)
+        with col_date1:
+            # 开始日期，默认今天
+            start_date = st.date_input(
+                "出发日期",
+                value=today,
+                min_value=today,
+                max_value=today + timedelta(days=365),
+                format="YYYY-MM-DD"
+            )
+        
+        with col_date2:
+            # 结束日期，根据天数自动计算
+            end_date = st.date_input(
+                "结束日期",
+                value=today + timedelta(days=days-1),
+                min_value=start_date,
+                max_value=start_date + timedelta(days=30),
+                format="YYYY-MM-DD"
+            )
+        
+        # 如果结束日期早于开始日期，自动调整
+        if end_date < start_date:
+            end_date = start_date + timedelta(days=days-1)
+            st.warning("结束日期已自动调整为开始日期之后")
+        
+        # 更新天数显示
+        actual_days = (end_date - start_date).days + 1
+        if actual_days != days:
+            days = actual_days
+            st.info(f"实际旅行天数: {days}天")
+        
         budget = st.selectbox(
             "预算等级",
             ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"],
@@ -206,18 +246,38 @@ def render_sidebar():
             "📸 摄影打卡": "拍照打卡"
         }
         
-        style = st.multiselect("旅行风格（可多选）", list(travel_styles.keys()), default=["🏖️ 休闲放松", "🏞️ 自然风光"])
+        # 这里定义 style 变量
+        style = st.multiselect(
+            "旅行风格（可多选）", 
+            list(travel_styles.keys()), 
+            default=["🏖️ 休闲放松", "🏞️ 自然风光"]
+        )
         
         with st.expander("⚙️ 高级选项"):
+            # 这里定义 hotel_preference 变量
             hotel_preference = st.selectbox(
-                "住宿偏好", ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"]
+                "住宿偏好", 
+                ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"]
             )
+            
+            # 这里定义 include_hotel_links 变量
             include_hotel_links = st.checkbox("包含酒店推荐", value=True)
+            
+            # 这里定义 generate_story 变量
             generate_story = st.checkbox("生成旅行叙事故事", value=True)
+            
+            # 这里定义 save_plan 变量
             save_plan = st.checkbox("保存本次行程", value=True)
         
         st.markdown("---")
-        generate_btn = st.button("🚀 生成个性化旅行计划", type="primary", use_container_width=True, disabled=not destination)
+        
+        # 这里定义 generate_btn 变量
+        generate_btn = st.button(
+            "🚀 生成个性化旅行计划", 
+            type="primary", 
+            use_container_width=True, 
+            disabled=not destination
+        )
         
         st.markdown("### 🔧 系统状态")
         client = get_client()
@@ -226,19 +286,21 @@ def render_sidebar():
         else:
             st.error("❌ 请配置API密钥")
     
+    # 确保返回所有定义的变量
     return {
         'destination': destination,
         'days': days,
         'people': people,
         'budget': budget,
-        'style': style,
-        'hotel_preference': hotel_preference,
-        'include_hotel_links': include_hotel_links,
-        'generate_story': generate_story,
-        'save_plan': save_plan,
-        'generate_btn': generate_btn
+        'style': style,  
+        'hotel_preference': hotel_preference,  
+        'include_hotel_links': include_hotel_links,  
+        'generate_story': generate_story, 
+        'save_plan': save_plan,  
+        'generate_btn': generate_btn,  
+        'start_date': start_date.strftime("%Y-%m-%d"),
+        'end_date': end_date.strftime("%Y-%m-%d")
     }
-
 # ========== 主页面 ==========
 def render_main_page():
     """渲染主页面"""
@@ -251,6 +313,8 @@ def generate_travel_plan(user_input):
     # 初始化变量
     attractions_data = []
     real_attractions = []
+    restaurants_data = []
+    real_restaurants = []
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -270,9 +334,9 @@ def generate_travel_plan(user_input):
     city_name = geo_result.get("formatted_address", user_input['destination'])
     progress_bar.progress(40)
     
-     # 步骤2：搜索景点（高德地图）
+    # 步骤2：搜索景点（高德地图）
     status_text.text("🔍 正在使用高德地图探索当地景点...")
-    progress_bar.progress(60)
+    progress_bar.progress(50)
     
     attractions_result = gaode_client.search_attractions(
         city_name=user_input['destination'],
@@ -286,9 +350,10 @@ def generate_travel_plan(user_input):
         st.success(f"✅ 找到 {len(attractions_data)} 个真实景点")
     else:
         st.warning(f"景点搜索失败: {attractions_result.get('message')}")
+    
     # 步骤3：搜索餐厅（高德地图）
     status_text.text("🍽️ 正在搜索当地美食餐厅...")
-    progress_bar.progress(70)
+    progress_bar.progress(60)
     
     restaurants_result = gaode_client.search_restaurants(
         city_name=user_input['destination'],
@@ -306,7 +371,43 @@ def generate_travel_plan(user_input):
         real_restaurants = []
         st.warning(f"餐厅搜索失败: {restaurants_result.get('message')}")
     
-    # 步骤4：AI生成行程
+    # 步骤4：获取精确城市信息（和风天气）
+    status_text.text("🌍 正在获取精确城市信息...")
+    progress_bar.progress(70)
+    
+    # 初始化天气相关变量
+    weather_data = None
+    weather_city_name = city_name
+    city_id = ""
+    
+    try:
+        from utils.weather_service_pro import QWeatherService
+        qweather = QWeatherService()
+        
+        # 智能搜索城市
+        city_info = qweather.find_best_city_match(user_input['destination'])
+        
+        if city_info:
+            st.success(f"✅ 已识别城市: {city_info.get('name')} ({city_info.get('adm1', '')})")
+            
+            # 更新城市信息
+            weather_city_name = city_info.get("name", user_input['destination'])
+            city_id = city_info.get("id", "")
+            
+            # 如果高德地图定位失败，使用和风天气的坐标
+            if not city_location or city_location == "":
+                lat = city_info.get("lat")
+                lon = city_info.get("lon")
+                if lat and lon:
+                    city_location = f"{lon},{lat}"
+                    st.info(f"📍 使用和风天气坐标: {city_location}")
+        else:
+            st.warning("⚠️ 和风天气无法识别该城市，如需使用天气功能请尝试输入完整地区名")
+            
+    except Exception as e:
+        st.warning(f"城市识别失败: {str(e)}")
+    
+    # 步骤5：AI生成行程
     status_text.text("🤖 AI正在整合信息，生成个性化行程...")
     progress_bar.progress(80)
     
@@ -315,7 +416,7 @@ def generate_travel_plan(user_input):
         "destination": user_input['destination'],
         "city_location": city_location,
         "real_attractions": real_attractions,
-        "real_restaurants": real_restaurants,  # 添加餐厅信息
+        "real_restaurants": real_restaurants,
         "days": user_input['days'],
         "people": user_input['people'],
         "budget": user_input['budget'],
@@ -325,34 +426,165 @@ def generate_travel_plan(user_input):
     }
     
     result = client.generate_travel_plan(ai_input)
-    progress_bar.progress(90)
     
     if "❌" in result.get("raw_response", "") or "⏰" in result.get("raw_response", ""):
         st.error(result["raw_response"])
         progress_bar.progress(100)
         return None
     
-    # 步骤5：准备结果
-    status_text.text("🎨 正在为您渲染最终行程...")
-    plan = result["formatted_plan"]
+    # 步骤6：获取天气预测（使用和风天气）
+    status_text.text("🌤️ 正在获取出行天气预测...")
+    progress_bar.progress(90)
     
+    try:
+        if city_id:
+            from datetime import datetime
+            start_date_obj = datetime.strptime(user_input['start_date'], "%Y-%m-%d")
+            end_date_obj = datetime.strptime(user_input['end_date'], "%Y-%m-%d")
+            travel_days = (end_date_obj - start_date_obj).days + 1
+            
+            # 动态计算需要的预报天数（最大30天）
+            forecast_days_needed = min(travel_days + 2, 30)
+            
+            # 获取天气数据
+            weather_result = qweather.get_city_weather(city_id, forecast_days=forecast_days_needed)
+            
+            if weather_result:
+                # 格式化天气数据
+                def format_weather_data(day):
+                    """格式化和风天气数据"""
+                    icon_map = {
+                        "100": "☀️", "101": "⛅", "102": "🌤️", "103": "🌥️",
+                        "104": "☁️", "300": "🌦️", "301": "🌧️", "302": "⛈️",
+                        "305": "🌧️", "306": "💦", "307": "🌧️", "400": "🌨️",
+                        "401": "❄️", "402": "☃️", "500": "🌫️", "501": "🌁",
+                        "502": "😷", "900": "🔥", "901": "🥶", "999": "🌈"
+                    }
+                    
+                    def get_weekday(date_str):
+                        try:
+                            weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+                            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                            return weekdays[date_obj.weekday()]
+                        except:
+                            return ""
+                    
+                    def generate_suggestions(day_data):
+                        suggestions = []
+                        weather_text = day_data.get("textDay", "")
+                        temp_max = int(day_data.get("tempMax", 25))
+                        temp_min = int(day_data.get("tempMin", 15))
+                        uv_index = day_data.get("uvIndex", "3")
+                        
+                        if temp_max >= 30:
+                            suggestions.append("天气炎热，注意防暑")
+                        elif temp_max >= 25:
+                            suggestions.append("天气温暖，适合户外")
+                        elif temp_min <= 5:
+                            suggestions.append("天气寒冷，注意保暖")
+                        elif temp_min <= 10:
+                            suggestions.append("天气较冷，建议添加衣物")
+                        
+                        if "雨" in weather_text:
+                            suggestions.append("有降雨，建议携带雨具")
+                        if "雪" in weather_text:
+                            suggestions.append("有降雪，注意防滑")
+                        if "雷" in weather_text:
+                            suggestions.append("有雷电，避免户外")
+                        if int(uv_index) >= 6:
+                            suggestions.append("紫外线强，注意防晒")
+                        
+                        return suggestions if suggestions else ["天气适宜出行"]
+                    
+                    return {
+                        "date": day.get("fxDate", ""),
+                        "weekday": get_weekday(day.get("fxDate", "")),
+                        "weather_day": day.get("textDay", "晴"),
+                        "weather_night": day.get("textNight", "晴"),
+                        "weather_icon": icon_map.get(day.get("iconDay", "100"), "🌈"),
+                        "temp_max": day.get("tempMax", "25"),
+                        "temp_min": day.get("tempMin", "15"),
+                        "humidity": day.get("humidity", "50"),
+                        "wind_dir_day": day.get("windDirDay", "无持续风向"),
+                        "wind_scale_day": day.get("windScaleDay", "1-2"),
+                        "precip": day.get("precip", "0"),
+                        "uv_index": day.get("uvIndex", "3"),
+                        "sunrise": day.get("sunrise", "06:00"),
+                        "sunset": day.get("sunset", "18:00"),
+                        "suggestions": generate_suggestions(day)
+                    }
+                
+                # 过滤旅行期间的天气预报
+                forecast_days = []
+                for day in weather_result.get("forecast", []):
+                    fx_date = day.get("fxDate", "")
+                    if user_input['start_date'] <= fx_date <= user_input['end_date']:
+                        forecast_days.append(format_weather_data(day))
+                
+                # 如果没有匹配到任何一天，至少显示第一天
+                if not forecast_days and weather_result.get("forecast"):
+                    forecast_days.append(format_weather_data(weather_result.get("forecast")[0]))
+                
+                # 获取生活指数
+                indices = qweather.get_city_indices(city_id)
+                
+                weather_data = {
+                    "status": "success",
+                    "city": weather_city_name,
+                    "city_id": city_id,
+                    "start_date": user_input['start_date'],
+                    "end_date": user_input['end_date'],
+                    "travel_days": travel_days,
+                    "current_weather": weather_result.get("current", {}),
+                    "forecast": forecast_days,
+                    "indices": indices,
+                    "update_time": weather_result.get("updateTime", ""),
+                    "source": "和风天气",
+                    "is_real": True,
+                    "has_weather": len(forecast_days) > 0
+                }
+                st.success(f"✅ 已获取{len(forecast_days)}天天气预测")
+            else:
+                weather_data = {
+                    "status": "error", 
+                    "message": "获取天气数据失败，请检查API配置或稍后重试"
+                }
+                st.warning("⚠️ 天气数据获取失败")
+        else:
+            weather_data = {
+                "status": "error", 
+                "message": "无法识别城市，请尝试输入完整城市名（如'北京市'）"
+            }
+            st.warning("⚠️ 无法识别城市ID，跳过天气获取")
+            
+    except Exception as e:
+        st.error(f"天气服务错误: {str(e)}")
+        weather_data = {
+            "status": "error", 
+            "message": f"天气服务暂时不可用: {str(e)}"
+        }
+    
+    # 步骤7：完成
+    status_text.text("🎨 正在为您渲染最终行程...")
+    progress_bar.progress(100)
+    
+    # 确保返回所有必要数据
     return {
-        'plan': plan,
-        'city_name': city_name,
+        'plan': result["formatted_plan"],
+        'city_name': city_name,  # 高德地图的城市名
+        'weather_city_name': weather_city_name,  # 和风天气的城市名
         'city_location': city_location,
         'attractions_data': attractions_data,
-        'restaurants_data': restaurants_data,  # ✅ 现在已定义
+        'restaurants_data': restaurants_data,
         'real_attractions': real_attractions,
-        'real_restaurants': real_restaurants,  # ✅ 现在已定义
+        'real_restaurants': real_restaurants,
         'ai_input': ai_input,
         'result': result,
-        'progress_bar': progress_bar,
-        'status_text': status_text,
-        'is_baidu': False  # 修改为False，因为用的是高德
+        'weather_data': weather_data,  # 包含天气数据
     }
     
 # ========== 结果显示 ==========
-
+#"""显示真实地点"""
 def display_real_locations(generation_result):
     """显示真实地点"""
     if generation_result.get('real_attractions') or generation_result.get('real_restaurants'):
@@ -371,7 +603,7 @@ def display_real_locations(generation_result):
                 st.markdown("**🍽️ 当地热门美食**")
                 for rest in generation_result.get('real_restaurants', [])[:5]:
                     st.markdown(f"- {rest}")
-
+#"""显示详细行程"""
 def display_detailed_plan(plan):
     """显示详细行程"""
     if "overview" in plan:
@@ -402,8 +634,7 @@ def display_detailed_plan(plan):
     if "travel_story" in plan and plan["travel_story"]:
         st.markdown("### 📖 旅行叙事")
         st.markdown(plan.get("travel_story", ""))
-
-
+#"""显示真实酒店推荐"""
 def display_hotel_recommendations(city_name, city_location, user_budget):
     """显示真实酒店推荐"""
     try:
@@ -436,7 +667,7 @@ def display_hotel_recommendations(city_name, city_location, user_budget):
         3. 注意酒店的取消政策
         4. 提前预订可能有优惠
         """)
-
+#"""保存行程"""
 def save_plan(generation_result, destination):
     """保存行程"""
     plan_data = {
@@ -451,6 +682,7 @@ def save_plan(generation_result, destination):
     saved_file = save_plan_to_file(plan_data, destination)
     if saved_file:
         st.success(f"✅ 行程已保存到: `{saved_file}`")
+#"""显示导出选项"""
 def show_export_options(plan_content, destination):
     """显示导出选项"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -490,10 +722,9 @@ def show_export_options(plan_content, destination):
         if st.button("📋 复制到剪贴板"):
             st.code(text_content[:500] + "..." if len(text_content) > 500 else text_content)
             st.success("请手动选择并复制上述内容 (Ctrl+C)")
+#"""显示AI智能路线规划"""
 def display_ai_route_planning(generation_result, user_input):
     """显示AI智能路线规划"""
-    st.markdown("---")
-    st.markdown("## 🗺️ AI智能路线规划")
     
     # 检查是否有景点数据
     attractions = generation_result.get('attractions_data', [])
@@ -562,6 +793,91 @@ def display_ai_route_planning(generation_result, user_input):
         city_name=user_input['destination'],
         gaode_client=gaode_client
     )
+#"""格式化和风天气的预报数据"""
+def _format_qweather_forecast(self, forecast_days, start_date, end_date):
+    """格式化和风天气的预报数据"""
+    from datetime import datetime
+    
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    formatted = []
+    for day in forecast_days:
+        fx_date = day.get("fxDate", "")
+        if start_date <= fx_date <= end_date:
+            formatted.append({
+                "date": fx_date,
+                "weekday": self._get_weekday(datetime.strptime(fx_date, "%Y-%m-%d")),
+                "weather_day": day.get("textDay", "晴"),
+                "weather_night": day.get("textNight", "晴"),
+                "weather_icon": self._get_weather_icon(day.get("iconDay", "100")),
+                "temp_max": day.get("tempMax", "25"),
+                "temp_min": day.get("tempMin", "15"),
+                "humidity": day.get("humidity", "50"),
+                "wind_dir_day": day.get("windDirDay", "无持续风向"),
+                "wind_scale_day": day.get("windScaleDay", "1-2"),
+                "precip": day.get("precip", "0"),
+                "uv_index": day.get("uvIndex", "3"),
+                "sunrise": day.get("sunrise", "06:00"),
+                "sunset": day.get("sunset", "18:00"),
+                "suggestions": self._generate_weather_suggestions(day)
+            })
+    
+    return formatted
+#"""获取星期几"""
+def _get_weekday(self, date_obj):
+    """获取星期几"""
+    weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    return weekdays[date_obj.weekday()]
+#"""获取天气图标"""
+def _get_weather_icon(self, code):
+    """获取天气图标"""
+    icon_map = {
+        "100": "☀️", "101": "⛅", "102": "🌤️", "103": "🌥️",
+        "104": "☁️", "150": "🌙", "151": "☁️",
+        "300": "🌦️", "301": "🌧️", "302": "⛈️", "303": "🌧️",
+        "305": "🌧️", "306": "💦", "307": "🌧️", "308": "🌧️",
+        "309": "🌧️", "310": "🌧️", "311": "🌧️", "312": "🌧️",
+        "313": "🌧️", "314": "🌧️", "315": "🌧️", "316": "🌧️",
+        "317": "🌧️", "318": "🌧️", "399": "🌧️",
+        "400": "🌨️", "401": "❄️", "402": "☃️", "403": "❄️",
+        "404": "🌨️", "405": "🌨️", "406": "🌨️", "407": "🌨️",
+        "408": "🌨️", "409": "🌨️", "410": "🌨️", "499": "❄️",
+        "500": "🌫️", "501": "🌁", "502": "😷", "503": "💨",
+        "504": "💨", "507": "💨", "508": "💨", "509": "🌫️",
+        "510": "🌫️", "511": "🌁", "512": "🌁", "513": "🌁",
+        "900": "🔥", "901": "🥶", "999": "🌈"
+    }
+    return icon_map.get(code, "🌈")
+#"""生成天气建议"""
+def _generate_weather_suggestions(self, day):
+    """生成天气建议"""
+    suggestions = []
+    
+    weather_day = day.get("textDay", "")
+    temp_max = int(day.get("tempMax", 25))
+    temp_min = int(day.get("tempMin", 15))
+    uv_index = day.get("uvIndex", "3")
+    
+    # 温度建议
+    if temp_max >= 30:
+        suggestions.append("天气炎热，注意防暑")
+    elif temp_max >= 25:
+        suggestions.append("天气温暖，适合户外")
+    elif temp_min <= 10:
+        suggestions.append("天气较冷，注意保暖")
+    
+    # 天气建议
+    if "雨" in weather_day:
+        suggestions.append("有降雨，建议携带雨具")
+    if "雪" in weather_day:
+        suggestions.append("有降雪，注意路面湿滑")
+    if "雷" in weather_day:
+        suggestions.append("有雷电，避免户外活动")
+    if int(uv_index) >= 6:
+        suggestions.append("紫外线较强，注意防晒")
+    
+    return suggestions if suggestions else ["天气适宜出行"]
 # ========== 主函数 ==========
 # ========== 主函数 ==========
 def main():
@@ -621,13 +937,25 @@ def display_results(generation_result, user_input):
     
     # 显示详细行程
     display_detailed_plan(plan)
+    if generation_result and generation_result.get('weather_data'):
+        weather_data = generation_result['weather_data']
+        
+        if weather_data.get("status") == "success":
+            st.markdown("---")
+            st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+            
+            # 显示详细天气
+            from utils.weather_display import WeatherDisplay
+            WeatherDisplay.display_detailed_weather(weather_data)
+        elif weather_data.get("message"):
+            st.warning(f"⚠️ 天气数据: {weather_data.get('message')}")
     
     # 显示地图和路线规划
     display_ai_route_planning(generation_result, user_input)
     
     # 显示真实地点
     display_real_locations(generation_result)
-     # 也可以添加专门的路线规划调用
+    # 也可以添加专门的路线规划调用
     if len(generation_result.get('attractions_data', [])) >= 2:
         from utils.gaode_route_display import GaodeRouteDisplay
         gaode_client = get_gaode_client()
