@@ -20,7 +20,7 @@ from utils.gaode_restaurant_display import GaodeRestaurantDisplay
 from utils.gaode_route_planner import GaodeRoutePlanner
 
 from utils.weather_display import WeatherDisplay
-from utils.weather_service_pro import QWeatherService
+from utils.smart_weather_service import SmartWeatherService
 # 页面配置
 st.set_page_config(
     page_title="个性化旅行规划助手",
@@ -347,7 +347,7 @@ def generate_travel_plan(user_input):
     if attractions_result.get("status") == "success":
         attractions_data = attractions_result.get("results", [])
         real_attractions = [a["name"] for a in attractions_data[:10]]
-        st.success(f"✅ 找到 {len(attractions_data)} 个真实景点")
+        #st.success(f"✅ 找到 {len(attractions_data)} 个真实景点")
     else:
         st.warning(f"景点搜索失败: {attractions_result.get('message')}")
     
@@ -365,47 +365,19 @@ def generate_travel_plan(user_input):
     if restaurants_result.get("status") == "success":
         restaurants_data = restaurants_result.get("restaurants", [])
         real_restaurants = [r["name"] for r in restaurants_data[:10]]
-        st.success(f"✅ 找到 {len(restaurants_data)} 个优质餐厅")
+        #st.success(f"✅ 找到 {len(restaurants_data)} 个优质餐厅")
     else:
         restaurants_data = []
         real_restaurants = []
         st.warning(f"餐厅搜索失败: {restaurants_result.get('message')}")
     
-    # 步骤4：获取精确城市信息（和风天气）
-    status_text.text("🌍 正在获取精确城市信息...")
+    # 步骤4：删除和风天气城市识别（不再需要）
+    status_text.text("🌍 正在获取城市信息...")
     progress_bar.progress(70)
     
     # 初始化天气相关变量
     weather_data = None
-    weather_city_name = city_name
-    city_id = ""
-    
-    try:
-        from utils.weather_service_pro import QWeatherService
-        qweather = QWeatherService()
-        
-        # 智能搜索城市
-        city_info = qweather.find_best_city_match(user_input['destination'])
-        
-        if city_info:
-            st.success(f"✅ 已识别城市: {city_info.get('name')} ({city_info.get('adm1', '')})")
-            
-            # 更新城市信息
-            weather_city_name = city_info.get("name", user_input['destination'])
-            city_id = city_info.get("id", "")
-            
-            # 如果高德地图定位失败，使用和风天气的坐标
-            if not city_location or city_location == "":
-                lat = city_info.get("lat")
-                lon = city_info.get("lon")
-                if lat and lon:
-                    city_location = f"{lon},{lat}"
-                    st.info(f"📍 使用和风天气坐标: {city_location}")
-        else:
-            st.warning("⚠️ 和风天气无法识别该城市，如需使用天气功能请尝试输入完整地区名")
-            
-    except Exception as e:
-        st.warning(f"城市识别失败: {str(e)}")
+    weather_city_name = city_name  # 使用高德地图的城市名
     
     # 步骤5：AI生成行程
     status_text.text("🤖 AI正在整合信息，生成个性化行程...")
@@ -432,131 +404,73 @@ def generate_travel_plan(user_input):
         progress_bar.progress(100)
         return None
     
-    # 步骤6：获取天气预测（使用和风天气）
-    status_text.text("🌤️ 正在获取出行天气预测...")
+    # 步骤6：获取天气预测（使用智能天气服务）
+    status_text.text("🌤️ 正在获取智能天气预测...")
     progress_bar.progress(90)
     
     try:
-        if city_id:
+        # 导入智能天气服务
+        from utils.smart_weather_service import SmartWeatherService
+        smart_weather = SmartWeatherService(use_cache=True)
+        
+        # 智能识别城市（可处理任意输入）
+        city_info = smart_weather.search_city_id(user_input['destination'])
+        
+        if city_info:
+            weather_city_name = city_info.get("city_name", user_input['destination'])
+            city_id = city_info.get("city_id", "")
+            #st.success(f"✅ 已智能识别: {weather_city_name} (来源: {city_info.get('source')})")
+            # 如果是智能生成的，给用户提示
+            #if "智能" in city_info.get("source", ""):
+                #st.info(f"💡 系统正在为您智能生成'{weather_city_name}'的天气预报")
+            
+            # 计算旅行天数
             from datetime import datetime
             start_date_obj = datetime.strptime(user_input['start_date'], "%Y-%m-%d")
             end_date_obj = datetime.strptime(user_input['end_date'], "%Y-%m-%d")
             travel_days = (end_date_obj - start_date_obj).days + 1
             
-            # 动态计算需要的预报天数（最大30天）
-            forecast_days_needed = min(travel_days + 2, 30)
-            
-            # 获取天气数据
-            weather_result = qweather.get_city_weather(city_id, forecast_days=forecast_days_needed)
+            # 获取智能天气数据
+            forecast_days_needed = min(travel_days, 7)
+            weather_result = smart_weather.get_weather_forecast(city_id, forecast_days_needed)
             
             if weather_result:
-                # 格式化天气数据
-                def format_weather_data(day):
-                    """格式化和风天气数据"""
-                    icon_map = {
-                        "100": "☀️", "101": "⛅", "102": "🌤️", "103": "🌥️",
-                        "104": "☁️", "300": "🌦️", "301": "🌧️", "302": "⛈️",
-                        "305": "🌧️", "306": "💦", "307": "🌧️", "400": "🌨️",
-                        "401": "❄️", "402": "☃️", "500": "🌫️", "501": "🌁",
-                        "502": "😷", "900": "🔥", "901": "🥶", "999": "🌈"
+                # 格式化数据
+                weather_data = smart_weather.format_for_display(
+                    weather_result, 
+                    weather_city_name, 
+                    user_input['start_date'], 
+                    user_input['end_date']
+                )
+                
+                if weather_data and weather_data.get("status") == "success":
+                    forecast_count = len(weather_data.get('forecast', []))
+                    #st.success(f"✅ 已获取{forecast_count}天天气预测")
+                else:
+                    weather_data = {
+                        "status": "error", 
+                        "message": "天气数据格式化失败"
                     }
-                    
-                    def get_weekday(date_str):
-                        try:
-                            weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-                            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
-                            return weekdays[date_obj.weekday()]
-                        except:
-                            return ""
-                    
-                    def generate_suggestions(day_data):
-                        suggestions = []
-                        weather_text = day_data.get("textDay", "")
-                        temp_max = int(day_data.get("tempMax", 25))
-                        temp_min = int(day_data.get("tempMin", 15))
-                        uv_index = day_data.get("uvIndex", "3")
-                        
-                        if temp_max >= 30:
-                            suggestions.append("天气炎热，注意防暑")
-                        elif temp_max >= 25:
-                            suggestions.append("天气温暖，适合户外")
-                        elif temp_min <= 5:
-                            suggestions.append("天气寒冷，注意保暖")
-                        elif temp_min <= 10:
-                            suggestions.append("天气较冷，建议添加衣物")
-                        
-                        if "雨" in weather_text:
-                            suggestions.append("有降雨，建议携带雨具")
-                        if "雪" in weather_text:
-                            suggestions.append("有降雪，注意防滑")
-                        if "雷" in weather_text:
-                            suggestions.append("有雷电，避免户外")
-                        if int(uv_index) >= 6:
-                            suggestions.append("紫外线强，注意防晒")
-                        
-                        return suggestions if suggestions else ["天气适宜出行"]
-                    
-                    return {
-                        "date": day.get("fxDate", ""),
-                        "weekday": get_weekday(day.get("fxDate", "")),
-                        "weather_day": day.get("textDay", "晴"),
-                        "weather_night": day.get("textNight", "晴"),
-                        "weather_icon": icon_map.get(day.get("iconDay", "100"), "🌈"),
-                        "temp_max": day.get("tempMax", "25"),
-                        "temp_min": day.get("tempMin", "15"),
-                        "humidity": day.get("humidity", "50"),
-                        "wind_dir_day": day.get("windDirDay", "无持续风向"),
-                        "wind_scale_day": day.get("windScaleDay", "1-2"),
-                        "precip": day.get("precip", "0"),
-                        "uv_index": day.get("uvIndex", "3"),
-                        "sunrise": day.get("sunrise", "06:00"),
-                        "sunset": day.get("sunset", "18:00"),
-                        "suggestions": generate_suggestions(day)
-                    }
-                
-                # 过滤旅行期间的天气预报
-                forecast_days = []
-                for day in weather_result.get("forecast", []):
-                    fx_date = day.get("fxDate", "")
-                    if user_input['start_date'] <= fx_date <= user_input['end_date']:
-                        forecast_days.append(format_weather_data(day))
-                
-                # 如果没有匹配到任何一天，至少显示第一天
-                if not forecast_days and weather_result.get("forecast"):
-                    forecast_days.append(format_weather_data(weather_result.get("forecast")[0]))
-                
-                # 获取生活指数
-                indices = qweather.get_city_indices(city_id)
-                
-                weather_data = {
-                    "status": "success",
-                    "city": weather_city_name,
-                    "city_id": city_id,
-                    "start_date": user_input['start_date'],
-                    "end_date": user_input['end_date'],
-                    "travel_days": travel_days,
-                    "current_weather": weather_result.get("current", {}),
-                    "forecast": forecast_days,
-                    "indices": indices,
-                    "update_time": weather_result.get("updateTime", ""),
-                    "source": "和风天气",
-                    "is_real": True,
-                    "has_weather": len(forecast_days) > 0
-                }
-                st.success(f"✅ 已获取{len(forecast_days)}天天气预测")
+                    st.warning("⚠️ 天气数据获取不完整")
             else:
                 weather_data = {
                     "status": "error", 
-                    "message": "获取天气数据失败，请检查API配置或稍后重试"
+                    "message": "获取天气数据失败"
                 }
                 st.warning("⚠️ 天气数据获取失败")
         else:
             weather_data = {
                 "status": "error", 
-                "message": "无法识别城市，请尝试输入完整城市名（如'北京市'）"
+                "message": "无法识别城市"
             }
-            st.warning("⚠️ 无法识别城市ID，跳过天气获取")
+            st.warning("⚠️ 无法识别城市，跳过天气获取")
             
+    except ImportError:
+        st.warning("⚠️ 智能天气服务模块未找到，跳过天气获取")
+        weather_data = {
+            "status": "error", 
+            "message": "天气服务模块未安装"
+        }
     except Exception as e:
         st.error(f"天气服务错误: {str(e)}")
         weather_data = {
@@ -564,15 +478,38 @@ def generate_travel_plan(user_input):
             "message": f"天气服务暂时不可用: {str(e)}"
         }
     
+    # 步骤7：智能预算分析
+    status_text.text("💰 正在分析行程预算...")
+    progress_bar.progress(95)
+
+    try:
+        from utils.smart_budget_analyzer import SmartBudgetAnalyzer
+        
+        # 使用智能分析器
+        budget_analysis = SmartBudgetAnalyzer.analyze(
+            user_input=user_input,
+            city_name=city_name,
+            attractions_count=len(attractions_data)
+        )
+        
+        st.success("✅ 预算分析完成")
+        
+    except Exception as e:
+        st.warning(f"⚠️ 预算分析失败: {str(e)}")
+        budget_analysis = {
+            "城市": city_name,
+            "错误": f"预算分析异常: {str(e)}",
+            "建议": "请检查输入格式"
+        }
     # 步骤7：完成
     status_text.text("🎨 正在为您渲染最终行程...")
     progress_bar.progress(100)
-    
+
     # 确保返回所有必要数据
     return {
         'plan': result["formatted_plan"],
         'city_name': city_name,  # 高德地图的城市名
-        'weather_city_name': weather_city_name,  # 和风天气的城市名
+        'weather_city_name': weather_city_name,  # 智能天气服务的城市名
         'city_location': city_location,
         'attractions_data': attractions_data,
         'restaurants_data': restaurants_data,
@@ -581,6 +518,7 @@ def generate_travel_plan(user_input):
         'ai_input': ai_input,
         'result': result,
         'weather_data': weather_data,  # 包含天气数据
+        'budget_analysis': budget_analysis,
     }
     
 # ========== 结果显示 ==========
@@ -926,75 +864,341 @@ def main():
     else:
         # 显示输入摘要
         display_input_summary(st.session_state.current_user_input)
+#预算显示
+def _display_simple_budget(budget_analysis):
+    """简易预算显示（备用方案）"""
+    if not budget_analysis or isinstance(budget_analysis, str):
+        st.warning("预算分析数据无效")
+        return
+    
+    st.markdown("---")
+    st.markdown("## 💰 预算分析概览")
+    
+    # 检查是否有错误信息
+    if '错误' in budget_analysis:
+        st.warning(f"⚠️ {budget_analysis['错误']}")
+        return
+    
+    # 创建概览卡片
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        total_cost = budget_analysis.get('总费用', 0)
+        st.metric("总预算", f"¥{total_cost:,.0f}")
+    
+    with col2:
+        per_person = budget_analysis.get('人均费用', 0)
+        st.metric("人均费用", f"¥{per_person:,.0f}")
+    
+    with col3:
+        per_day = budget_analysis.get('日均费用', 0)
+        st.metric("日均费用", f"¥{per_day:,.0f}")
+    
+    # 显示城市和天数信息
+    st.caption(f"📍 **城市**: {budget_analysis.get('城市', '未知')} | 📅 **天数**: {budget_analysis.get('天数', 0)}天 | 👥 **人数**: {budget_analysis.get('人数', 0)}人")
+    
+    # 显示费用明细
+    st.markdown("### 📋 费用明细")
+    cost_breakdown = budget_analysis.get('费用明细', {})
+    
+    if cost_breakdown:
+        for category, amount in cost_breakdown.items():
+            if total_cost > 0:
+                percentage = (amount / total_cost) * 100
+            else:
+                percentage = 0
+            
+            # 创建进度条表示占比
+            col_prog, col_text = st.columns([1, 3])
+            with col_prog:
+                st.progress(min(percentage / 100, 1.0))
+            with col_text:
+                st.markdown(f"**{category}**: ¥{amount:,.0f} ({percentage:.1f}%)")
+    else:
+        st.info("暂无详细的费用明细数据")
+    
+    # 显示预算评估
+    budget_assessment = budget_analysis.get('预算评估', {})
+    if budget_assessment:
+        st.markdown("### 📊 预算评估")
+        
+        status = budget_assessment.get('状态', '未知')
+        status_colors = {
+            "预算合理": "green",
+            "预算合理偏低": "lightgreen", 
+            "预算偏低": "orange",
+            "预算略高": "orange",
+            "预算偏高": "red"
+        }
+        
+        status_color = status_colors.get(status, "blue")
+        
+        st.markdown(f"""
+        <div style="
+            background-color: {status_color}20;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 5px solid {status_color};
+            margin: 10px 0;
+        ">
+            <h4 style="margin: 0; color: {status_color};">{status}</h4>
+            <p style="margin: 5px 0 0 0;">{budget_assessment.get('评估', '')}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if budget_assessment.get('合理预算范围'):
+            st.caption(f"💰 **合理预算范围**: {budget_assessment['合理预算范围']}")
+    
+    # 显示优化建议
+    suggestions = budget_analysis.get('优化建议', [])
+    if suggestions:
+        st.markdown("### 💡 优化建议")
+        
+        for i, suggestion in enumerate(suggestions[:3]):  # 只显示前3条
+            with st.expander(f"建议 {i+1}: {suggestion.get('类别', '通用')}", expanded=(i==0)):
+                st.markdown(f"**建议**: {suggestion.get('建议', '')}")
+                if suggestion.get('预计节省'):
+                    st.markdown(f"**预计节省**: {suggestion['预计节省']}")
+    
+    # 显示每日明细（如果有）
+    daily_breakdown = budget_analysis.get('每日明细', [])
+    if daily_breakdown and len(daily_breakdown) > 0:
+        st.markdown("### 📅 每日费用概览")
+        
+        # 创建简单的每日表格
+        import pandas as pd
+        df = pd.DataFrame(daily_breakdown)
+        
+        # 格式化数字显示
+        for col in ['住宿', '餐饮', '交通', '门票', '购物', '其他', '小计']:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: f"¥{x:,.0f}" if pd.notnull(x) else "¥0")
+        
+        st.dataframe(df, use_container_width=True, hide_index=True)
 def display_results(generation_result, user_input):
     """显示生成结果"""
-    plan = generation_result['plan']
+    if not generation_result:
+        st.error("❌ 生成结果为空")
+        return
+    
+    plan = generation_result.get('plan', {})
     
     # 显示行程概览
     st.markdown("## ✨ 您的个性化旅行计划")
-    st.markdown(f"**目的地**: {generation_result['city_name']} | **天数**: {user_input['days']}天 | **人数**: {user_input['people']}人")
+    st.markdown(f"**目的地**: {generation_result.get('city_name', '未知')} | **天数**: {user_input.get('days', 1)}天 | **人数**: {user_input.get('people', 1)}人")
     st.markdown("---")
+    if generation_result.get('budget_analysis'):
+        try:
+            from utils.smart_budget_analyzer import SmartBudgetAnalyzer
+            SmartBudgetAnalyzer.display(generation_result['budget_analysis'])
+        except Exception as e:
+            st.warning(f"预算显示失败: {str(e)}")
     
+    st.markdown("---")
     # 显示详细行程
     display_detailed_plan(plan)
+    
+    # 天气显示部分 - 修复版
     if generation_result and generation_result.get('weather_data'):
         weather_data = generation_result['weather_data']
         
-        if weather_data.get("status") == "success":
+        try:
+            # 尝试导入天气显示模块
+            from utils.weather_display import WeatherDisplay
+            
+            if hasattr(WeatherDisplay, 'display_detailed_weather'):
+                # 方法存在，正常调用
+                WeatherDisplay.display_detailed_weather(weather_data)
+            else:
+                # 方法不存在，使用备选方案
+                st.markdown("---")
+                st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+                _display_weather_fallback(weather_data)
+                
+        except ImportError:
+            # 模块导入失败，使用简易天气显示
             st.markdown("---")
             st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+            _display_weather_fallback(weather_data)
             
-            # 显示详细天气
-            from utils.weather_display import WeatherDisplay
-            WeatherDisplay.display_detailed_weather(weather_data)
-        elif weather_data.get("message"):
-            st.warning(f"⚠️ 天气数据: {weather_data.get('message')}")
+        except AttributeError:
+            # 属性错误，使用备选方案
+            st.markdown("---")
+            st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+            _display_weather_fallback(weather_data)
+        
+        except Exception as e:
+            st.error(f"天气显示错误: {str(e)}")
     
     # 显示地图和路线规划
     display_ai_route_planning(generation_result, user_input)
     
     # 显示真实地点
     display_real_locations(generation_result)
+    
     # 也可以添加专门的路线规划调用
     if len(generation_result.get('attractions_data', [])) >= 2:
-        from utils.gaode_route_display import GaodeRouteDisplay
-        gaode_client = get_gaode_client()
-        
-        st.markdown("---")
-        st.markdown("## 🗺️ 详细路线规划")
-        
-        GaodeRouteDisplay.display_route_planning(
-            attractions=generation_result['attractions_data'][:5],
-            city=user_input['destination'],
-            gaode_client=gaode_client
-        )
+        try:
+            from utils.gaode_route_display import GaodeRouteDisplay
+            gaode_client = get_gaode_client()
+            
+            st.markdown("---")
+            st.markdown("## 🗺️ 详细路线规划")
+            
+            GaodeRouteDisplay.display_route_planning(
+                attractions=generation_result['attractions_data'][:5],
+                city=user_input['destination'],
+                gaode_client=gaode_client
+            )
+        except ImportError:
+            st.warning("⚠️ 路线规划模块不可用")
+        except Exception as e:
+            st.warning(f"路线规划功能暂时不可用: {str(e)}")
     
     # 酒店推荐（真实数据）
-    if user_input['include_hotel_links']:
-        display_hotel_recommendations(
-            city_name=user_input['destination'],
-            city_location=generation_result['city_location'],
-            user_budget=user_input['budget']
-        )
+    if user_input.get('include_hotel_links', False):
+        try:
+            display_hotel_recommendations(
+                city_name=user_input['destination'],
+                city_location=generation_result.get('city_location', ''),
+                user_budget=user_input.get('budget', '中等')
+            )
+        except Exception as e:
+            st.warning(f"酒店推荐功能暂时不可用: {str(e)}")
+    
     # 餐厅推荐
     if user_input.get('budget'):  # 如果有预算信息
         try:
+            from utils.gaode_route_display import GaodeRestaurantDisplay
             gaode_client = get_gaode_client()
             GaodeRestaurantDisplay.display_restaurant_recommendations(
                 gaode_client=gaode_client,
                 city_name=user_input['destination'],
-                city_location=generation_result['city_location'],
-                user_budget=user_input['budget'],
+                city_location=generation_result.get('city_location', ''),
+                user_budget=user_input.get('budget', '中等'),
                 restaurant_count=6
             )
+        except ImportError:
+            st.warning("⚠️ 餐厅推荐模块不可用")
         except Exception as e:
             st.warning(f"餐厅推荐功能暂时不可用: {str(e)}")
+    
     # 保存行程
-    if user_input['save_plan']:
-        save_plan(generation_result, user_input['destination'])
+    if user_input.get('save_plan', False):
+        try:
+            save_plan(generation_result, user_input['destination'])
+        except Exception as e:
+            st.warning(f"保存行程失败: {str(e)}")
     
     # 导出选项
-    show_export_options(plan, user_input['destination'])
+    try:
+        show_export_options(plan, user_input['destination'])
+    except Exception as e:
+        st.warning(f"导出功能暂时不可用: {str(e)}")
+
+
+def _display_weather_fallback(weather_data):
+    """天气显示备选方案"""
+    if not weather_data or weather_data.get("status") != "success":
+        if weather_data and weather_data.get("message"):
+            st.warning(f"⚠️ 天气数据: {weather_data.get('message')}")
+        else:
+            st.warning("⚠️ 天气数据不可用")
+        return
+    
+    city_name = weather_data.get('city', '目的地')
+    forecast = weather_data.get('forecast', [])
+    
+    if not forecast:
+        st.info("暂无天气预报数据")
+        return
+    
+    st.markdown(f"### 📅 {city_name} 旅行天气 ({len(forecast)}天)")
+    
+    # 按行显示天气卡片
+    for i in range(0, len(forecast), 3):  # 每行最多3个
+        cols = st.columns(min(3, len(forecast) - i))
+        
+        for col_idx in range(len(cols)):
+            idx = i + col_idx
+            if idx < len(forecast):
+                day = forecast[idx]
+                
+                with cols[col_idx]:
+                    # 创建天气卡片
+                    with st.container():
+                        # 日期
+                        date_str = day.get('fxDate') or day.get('date') or f"第{idx+1}天"
+                        weekday = _get_weekday_fallback(date_str)
+                        
+                        st.markdown(f"**{date_str}**")
+                        if weekday:
+                            st.caption(weekday)
+                        
+                        # 天气图标和描述
+                        col_icon, col_desc = st.columns([1, 2])
+                        with col_icon:
+                            icon = day.get('iconDay') or day.get('weather_icon') or '🌈'
+                            st.markdown(f"<h3 style='text-align: center; margin: 0;'>{icon}</h3>", unsafe_allow_html=True)
+                        with col_desc:
+                            weather = day.get('textDay') or day.get('weather_day') or '晴'
+                            st.markdown(f"**{weather}**")
+                        
+                        # 温度
+                        temp_max = day.get('tempMax') or day.get('temp_max') or '25'
+                        temp_min = day.get('tempMin') or day.get('temp_min') or '15'
+                        st.markdown(f"🌡️ **{temp_min}°C ~ {temp_max}°C**")
+                        
+                        # 其他信息
+                        details = []
+                        if day.get('humidity'):
+                            details.append(f"💧 {day['humidity']}%")
+                        if day.get('windDirDay') or day.get('wind_dir_day'):
+                            wind = day.get('windDirDay') or day.get('wind_dir_day') or ''
+                            details.append(f"💨 {wind}")
+                        if day.get('precip') and day.get('precip') != '0':
+                            details.append(f"🌧️ {day['precip']}mm")
+                        
+                        if details:
+                            st.caption(" | ".join(details))
+                        
+                        # 建议
+                        suggestions = day.get('suggestions', [])
+                        if suggestions:
+                            with st.expander("💡 建议", expanded=False):
+                                for suggestion in suggestions:
+                                    st.write(f"• {suggestion}")
+    
+    # 数据来源
+    if weather_data.get('update_time'):
+        source = weather_data.get('source', '智能天气系统')
+        st.caption(f"🕒 更新时间: {weather_data['update_time']} | 数据来源: {source}")
+
+
+def _get_weekday_fallback(date_str):
+    """获取星期几（备选方案）"""
+    from datetime import datetime
+    try:
+        if '-' in date_str:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        elif '月' in date_str and '日' in date_str:
+            # 处理中文日期格式，如 "5月15日"
+            import re
+            match = re.search(r'(\d+)月(\d+)日', date_str)
+            if match:
+                month = int(match.group(1))
+                day = int(match.group(2))
+                year = datetime.now().year
+                date_obj = datetime(year, month, day)
+            else:
+                return ""
+        else:
+            return ""
+        
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        return weekdays[date_obj.weekday()]
+    except:
+        return ""
 def display_input_summary(user_input):
     """显示输入摘要"""
     if not user_input or not user_input['destination']:
