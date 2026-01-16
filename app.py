@@ -994,7 +994,6 @@ def display_results(generation_result, user_input):
         except Exception as e:
             st.warning(f"预算显示失败: {str(e)}")
     
-    st.markdown("---")
     # 显示详细行程
     display_detailed_plan(plan)
     
