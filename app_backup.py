@@ -2,7 +2,6 @@
 import streamlit as st
 import json
 import os
-import time 
 from datetime import datetime, timedelta
 from streamlit_folium import st_folium
 
@@ -37,333 +36,125 @@ def get_gaode_client():
 # ========== 主题样式 ==========
 theme_css = """
 <style>
-    /* 主色调定义 */
     :root {
-        --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         --bg-color: #0f172a;
         --text-color: #e2e8f0;
         --card-bg: #1e293b;
-        --card-hover: #2d3748;
-        --card-border: #4a5568;
+        --card-border: #334155;
         --primary-color: #60a5fa;
-        --accent-color: #a78bfa;
-        --success-color: #10b981;
-        --warning-color: #f59e0b;
         --header-color: #93c5fd;
         --sidebar-bg: #1e293b;
-        --metric-bg: #2d3748;
-        --input-bg: #2d3748;
+        --metric-bg: #1e293b;
+        --success-bg: #065f46;
+        --info-bg: #1e40af;
     }
     
-    /* 整体样式 */
     .stApp {
         background-color: var(--bg-color) !important;
         color: var(--text-color) !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* 标题样式 */
     .main-header {
-        font-size: 2.8rem;
-        font-weight: 800;
+        font-size: 2.5rem;
         text-align: center;
-        margin: 1.5rem 0;
-        background: var(--primary-gradient);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        text-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        margin-bottom: 1rem;
+        color: var(--header-color) !important;
     }
     
     .sub-header {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         text-align: center;
-        margin-bottom: 2.5rem;
-        color: #94a3b8;
-        font-weight: 300;
+        margin-bottom: 2rem;
+        color: var(--text-color) !important;
     }
     
-    /* 卡片设计 */
+    .plan-card, .hotel-card {
+        background-color: var(--card-bg) !important;
+        border-color: var(--card-border) !important;
+        color: var(--text-color) !important;
+        padding: 1.5rem;
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
     .plan-card {
-        background: var(--card-bg);
-        border: none;
-        border-radius: 16px;
-        padding: 1.8rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        border-left: 6px solid var(--primary-color);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
+        border-left: 5px solid var(--primary-color) !important;
     }
     
-    .plan-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: var(--primary-gradient);
+    .hotel-card {
+        border: 1px solid var(--card-border) !important;
+        padding: 1rem;
     }
     
-    .plan-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
-    }
-    
-    /* 侧边栏美化 */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--sidebar-bg) 0%, #0f172a 100%);
-        border-right: 1px solid #334155;
+        background-color: var(--sidebar-bg) !important;
     }
     
-    .stSidebarHeader {
-        background: var(--primary-gradient) !important;
-        padding: 1.5rem !important;
-        margin-bottom: 1.5rem !important;
-    }
-    
-    /* 按钮美化 */
-    .stButton > button {
-        background: var(--primary-gradient) !important;
+    .stButton button {
+        background-color: var(--primary-color) !important;
         color: white !important;
-        font-weight: 600;
-        font-size: 1rem;
-        border-radius: 12px;
-        padding: 0.8rem 2rem;
+        font-weight: bold;
+        border-radius: 10px;
+        padding: 0.5rem 2rem;
         border: none;
         cursor: pointer;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        width: 100%;
-        position: relative;
-        overflow: hidden;
     }
     
-    .stButton > button::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -100%;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-        transition: 0.5s;
-    }
-    
-    .stButton > button:hover::before {
-        left: 100%;
-    }
-    
-    .stButton > button:hover {
+    .stButton button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        box-shadow: 0 4px 12px rgba(96, 165, 250, 0.3);
     }
     
-    /* 输入框美化 */
-    .stTextInput input, .stNumberInput input, .stSelectbox select, .stDateInput input {
-        background-color: var(--input-bg) !important;
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        background-color: var(--card-bg) !important;
         color: var(--text-color) !important;
-        border: 2px solid var(--card-border) !important;
-        border-radius: 10px;
-        padding: 0.8rem 1rem;
-        font-size: 1rem;
-        transition: all 0.3s ease;
+        border-color: var(--card-border) !important;
     }
     
-    .stTextInput input:focus, .stNumberInput input:focus, .stSelectbox select:focus {
-        border-color: var(--primary-color) !important;
-        box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1) !important;
-    }
-    
-    /* 标签样式 */
     label, p, span, div {
         color: var(--text-color) !important;
     }
     
-    /* 进度条 */
     .stProgress > div > div {
-        background: var(--primary-gradient) !important;
-        border-radius: 10px;
+        background-color: var(--primary-color) !important;
     }
     
-    /* 指标卡片 */
     [data-testid="metric-container"] {
-        background: var(--metric-bg) !important;
-        border: none !important;
-        border-radius: 12px;
-        padding: 1.2rem;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        border-left: 4px solid var(--accent-color);
+        background-color: var(--metric-bg) !important;
+        border: 1px solid var(--card-border) !important;
     }
     
-    [data-testid="metric-container"] > div > div {
-        font-size: 1.1rem !important;
-        color: var(--text-color) !important;
-    }
-    
-    /* 警告/成功消息 */
     .stAlert {
-        border-radius: 12px !important;
-        border: none !important;
-        padding: 1.2rem !important;
-        margin: 1rem 0 !important;
+        background-color: var(--info-bg) !important;
+        border-color: var(--card-border) !important;
     }
     
     .stSuccess {
-        background: rgba(16, 185, 129, 0.15) !important;
-        border-left: 4px solid var(--success-color) !important;
+        background-color: var(--success-bg) !important;
     }
     
-    .stWarning {
-        background: rgba(245, 158, 11, 0.15) !important;
-        border-left: 4px solid var(--warning-color) !important;
-    }
-    
-    .stError {
-        background: rgba(239, 68, 68, 0.15) !important;
-        border-left: 4px solid #ef4444 !important;
-    }
-    
-    .stInfo {
-        background: rgba(96, 165, 250, 0.15) !important;
-        border-left: 4px solid var(--primary-color) !important;
-    }
-    
-    /* 扩展器 */
     .streamlit-expanderHeader {
         background-color: var(--card-bg) !important;
         color: var(--text-color) !important;
-        border-radius: 10px;
-        padding: 1rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
     }
     
-    .streamlit-expanderHeader:hover {
-        background-color: var(--card-hover) !important;
+    .stCodeBlock {
+        background-color: var(--card-bg) !important;
     }
     
-    /* 选项卡 */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: var(--card-bg);
-        padding: 8px;
-        border-radius: 12px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 10px 20px;
-        background-color: transparent;
-        color: var(--text-color);
-        transition: all 0.3s ease;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: var(--primary-gradient) !important;
-        color: white !important;
-        font-weight: 600;
-    }
-    
-    /* 日间行程卡片 */
     .day-section {
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.15) 0%, rgba(167, 139, 250, 0.15) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 1.2rem;
-        border-radius: 12px;
-        margin: 1rem 0;
-        backdrop-filter: blur(10px);
-    }
-    
-    /* 美化滚动条 */
-    ::-webkit-scrollbar {
-        width: 10px;
-    }
-    
-    ::-webkit-scrollbar-track {
-        background: var(--card-bg);
-    }
-    
-    ::-webkit-scrollbar-thumb {
-        background: var(--primary-color);
+        padding: 0.5rem 1rem;
         border-radius: 5px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-        background: var(--accent-color);
-    }
-    
-    /* 响应式调整 */
-    @media (max-width: 768px) {
-        .main-header {
-            font-size: 2rem;
-        }
-        
-        .plan-card {
-            padding: 1.2rem;
-        }
-    }
-        /* 隐藏空容器 */
-    .stMarkdownContainer:empty,
-    .stMarkdown:empty {
-        display: none !important;
-    }
-
-    /* 移除伪元素 */
-    *::before, *::after {
-        display: none !important;
-        content: none !important;
+        margin: 1rem 0;
     }
 </style>
 """
 st.markdown(theme_css, unsafe_allow_html=True)
-#"""显示美化加载动画"""
-def show_enhanced_loading():
-    """显示美化加载动画"""
-    import time
-    
-    # 创建加载容器
-    with st.spinner(''):
-        # 进度条
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # 模拟步骤
-        steps = [
-            ("🗺️ 正在定位目的地...", 15),
-            ("🔍 搜索景点和美食...", 30),
-            ("🤖 AI智能规划行程...", 50),
-            ("🌤️ 获取天气预测...", 70),
-            ("💰 分析预算分配...", 85),
-            ("✨ 生成最终方案...", 95),
-            ("✅ 完成！", 100)
-        ]
-        
-        for step_text, progress_value in steps:
-            status_text.markdown(f"""
-            <div style="
-                background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-                border: 1px solid rgba(96, 165, 250, 0.2);
-                border-radius: 10px;
-                padding: 1rem;
-                margin: 0.5rem 0;
-                color: #94a3b8;
-            ">
-                <span style="color: #60a5fa; font-weight: bold;">▶</span> {step_text}
-            </div>
-            """, unsafe_allow_html=True)
-            
-            progress_bar.progress(progress_value)
-            time.sleep(0.3 if progress_value < 100 else 0.1)
-        
-        # 完成后的小动画
-        time.sleep(0.5)
-        status_text.success("🎉 行程生成完成！")
-        progress_bar.empty()
+
 # ========== 核心函数 ==========
 #初始化智谱 AI,缓存,避免重复创建
 @st.cache_resource 
@@ -389,91 +180,64 @@ def save_plan_to_file(plan_data, destination):
 
 # ========== 侧边栏 ==========
 def render_sidebar():
-    """渲染侧边栏 - 简洁版"""
+    """渲染侧边栏"""
     with st.sidebar:
-        # ========== 美观的头部 ==========
-        st.markdown("""
-        <div style="
-            text-align: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 8px;
-            padding: 0.6rem 0;
-            margin-bottom: 1.5rem;
-            color: white;
-        ">
-            <div style="font-size: 1.8rem; line-height: 1.3;">✈️</div>
-            <div style="font-size: 1.5rem; font-weight: 600; line-height: 1.3; margin: 0.1rem 0;">智能旅行规划</div>
-            <div style="font-size: 1rem; opacity: 0.9; line-height: 1.3;">毕业设计项目</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.header("📋 填写旅行需求")
         
-        # ========== 基本信息 ==========
-        destination = st.text_input(
-            "目的地", 
-            placeholder="例如：北京、青岛、大理",
-            help="输入您想去的地方",
-            key="destination_final"
-        )
+        destination = st.text_input("目的地", placeholder="例如：北京、青岛海边、云南大理")
         
         col1, col2 = st.columns(2)
         with col1:
-            days = st.number_input("旅行天数", 1, 30, 3, help="计划旅行的天数", key="days_final")
+            days = st.number_input("旅行天数", 1, 30, 3)
         with col2:
-            people = st.number_input("出行人数", 1, 20, 2, help="一起旅行的人数", key="people_final")
+            people = st.number_input("出行人数", 1, 20, 2)
         
-        # ========== 出行日期 ==========
+        # 添加出行日期选择
         st.markdown("---")
-        st.markdown("#### 📅 出行日期")
+        st.markdown("### 📅 出行日期")
         
         today = datetime.now().date()
-        
         col_date1, col_date2 = st.columns(2)
         with col_date1:
+            # 开始日期，默认今天
             start_date = st.date_input(
                 "出发日期",
                 value=today,
                 min_value=today,
                 max_value=today + timedelta(days=365),
-                format="YYYY/MM/DD",
-                help="选择出发日期",
-                key="start_date_final"
+                format="YYYY-MM-DD"
             )
         
         with col_date2:
+            # 结束日期，根据天数自动计算
             end_date = st.date_input(
                 "结束日期",
                 value=today + timedelta(days=days-1),
                 min_value=start_date,
                 max_value=start_date + timedelta(days=30),
-                format="YYYY/MM/DD",
-                help="选择结束日期",
-                key="end_date_final"
+                format="YYYY-MM-DD"
             )
         
-        # 日期验证
+        # 如果结束日期早于开始日期，自动调整
         if end_date < start_date:
             end_date = start_date + timedelta(days=days-1)
-            st.warning("结束日期已自动调整")
+            st.warning("结束日期已自动调整为开始日期之后")
         
+        # 更新天数显示
         actual_days = (end_date - start_date).days + 1
         if actual_days != days:
             days = actual_days
             st.info(f"实际旅行天数: {days}天")
         
-        # ========== 偏好设置 ==========
-        st.markdown("---")
-        st.markdown("#### ⚙️ 偏好设置")
-        
         budget = st.selectbox(
             "预算等级",
             ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"],
-            index=1,
-            key="budget_final"
+            index=1
         )
         
         travel_styles = {
             "🏖️ 休闲放松": "轻松度假",
-            "🎨 文化探索": "文化景点", 
+            "🎨 文化探索": "文化景点",
             "🍜 美食之旅": "品尝美食",
             "🏞️ 自然风光": "自然景观",
             "🎢 冒险刺激": "刺激体验",
@@ -482,176 +246,97 @@ def render_sidebar():
             "📸 摄影打卡": "拍照打卡"
         }
         
+        # 这里定义 style 变量
         style = st.multiselect(
             "旅行风格（可多选）", 
             list(travel_styles.keys()), 
-            default=["🏖️ 休闲放松", "🏞️ 自然风光"],
-            key="style_final"
+            default=["🏖️ 休闲放松", "🏞️ 自然风光"]
         )
         
-        # 高级选项
-        with st.expander("⚙️ 高级选项", expanded=False):
+        with st.expander("⚙️ 高级选项"):
+            # 这里定义 hotel_preference 变量
             hotel_preference = st.selectbox(
                 "住宿偏好", 
-                ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"],
-                key="hotel_preference_final"
+                ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"]
             )
             
-            include_hotel_links = st.checkbox("包含酒店推荐", value=True, key="hotel_checkbox_final")
-            generate_story = st.checkbox("生成旅行叙事故事", value=True, key="story_checkbox_final")
-            save_plan = st.checkbox("保存本次行程", value=True, key="save_checkbox_final")
+            # 这里定义 include_hotel_links 变量
+            include_hotel_links = st.checkbox("包含酒店推荐", value=True)
+            
+            # 这里定义 generate_story 变量
+            generate_story = st.checkbox("生成旅行叙事故事", value=True)
+            
+            # 这里定义 save_plan 变量
+            save_plan = st.checkbox("保存本次行程", value=True)
         
-        # ========== 生成按钮（占据剩余空间） ==========
         st.markdown("---")
         
-        # 添加一些间距
-        st.markdown("<br>", unsafe_allow_html=True)
-        
+        # 这里定义 generate_btn 变量
         generate_btn = st.button(
             "🚀 生成个性化旅行计划", 
             type="primary", 
-            use_container_width=True,
-            disabled=not destination,
-            key="generate_button_final"
+            use_container_width=True, 
+            disabled=not destination
         )
         
-        # 如果没有输入目的地，在按钮下方显示简单提示
-        if not destination and not generate_btn:
-            st.markdown("""
-            <div style="
-                text-align: center;
-                padding: 0.5rem;
-                color: #94a3b8;
-                font-size: 0.85rem;
-                margin-top: 0.5rem;
-            ">
-                👆 请输入目的地
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # ========== 添加CSS修复 ==========
-        st.markdown("""
-        <style>
-        /* 确保没有空元素 */
-        .stMarkdownContainer:empty {
-            display: none !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        st.markdown("### 🔧 系统状态")
+        client = get_client()
+        if client.api_key:
+            st.success("✅ 智谱AI连接正常")
+        else:
+            st.error("❌ 请配置API密钥")
     
-    # 返回所有参数
+    # 确保返回所有定义的变量
     return {
         'destination': destination,
         'days': days,
         'people': people,
         'budget': budget,
-        'style': style,
-        'hotel_preference': hotel_preference,
-        'include_hotel_links': include_hotel_links,
-        'generate_story': generate_story,
-        'save_plan': save_plan,
-        'generate_btn': generate_btn,
+        'style': style,  
+        'hotel_preference': hotel_preference,  
+        'include_hotel_links': include_hotel_links,  
+        'generate_story': generate_story, 
+        'save_plan': save_plan,  
+        'generate_btn': generate_btn,  
         'start_date': start_date.strftime("%Y-%m-%d"),
         'end_date': end_date.strftime("%Y-%m-%d")
     }
 # ========== 主页面 ==========
 def render_main_page():
     """渲染主页面"""
-    # 使用更美观的HTML标题
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem 0;">
-        <h1 class="main-header">✈️ 个性化旅行规划助手</h1>
-        <p class="sub-header">基于多智能体协作与大语言模型的智能旅行规划系统 • 毕业设计项目</p>
-        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 1rem;">
-            <span style="background: linear-gradient(45deg, #667eea, #764ba2); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🤖 AI智能规划</span>
-            <span style="background: linear-gradient(45deg, #f093fb, #f5576c); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🗺️ 实时地图集成</span>
-            <span style="background: linear-gradient(45deg, #4facfe, #00f2fe); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🌤️ 智能天气预报</span>
-            <span style="background: linear-gradient(45deg, #43e97b, #38f9d7); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">💰 智能预算分析</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">✈️ 个性化旅行规划与叙事生成助手</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">基于大语言模型的智能旅行规划系统 • 毕业设计项目</p>', unsafe_allow_html=True)
+
 # ========== 行程生成 ==========
 def generate_travel_plan(user_input):
-    """生成旅行计划 - 紧凑提示版"""
+    """生成旅行计划"""
     # 初始化变量
     attractions_data = []
     real_attractions = []
     restaurants_data = []
     real_restaurants = []
     
-    # 创建紧凑的消息容器
-    message_container = st.empty()
+    progress_bar = st.progress(0)
+    status_text = st.empty()
     
     # 步骤1：获取坐标（高德地图）
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-size: 0.9rem;">1</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">🗺️ 正在定位目的地...</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    status_text.text("🗺️ 正在使用高德地图定位目的地...")
+    progress_bar.progress(20)
     
     gaode_client = get_gaode_client()
     geo_result = gaode_client.geocode(user_input['destination'])
     
     if geo_result.get("status") != "success":
-        message_container.error(f"❌ 无法找到目的地: {geo_result.get('message')}")
+        st.error(f"❌ 无法找到目的地: {geo_result.get('message')}")
         return None
     
     city_location = geo_result["location"]
     city_name = geo_result.get("formatted_address", user_input['destination'])
+    progress_bar.progress(40)
     
     # 步骤2：搜索景点（高德地图）
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-size: 0.9rem;">2</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">🔍 正在搜索当地景点和美食...</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    status_text.text("🔍 正在使用高德地图探索当地景点...")
+    progress_bar.progress(50)
     
     attractions_result = gaode_client.search_attractions(
         city_name=user_input['destination'],
@@ -662,24 +347,14 @@ def generate_travel_plan(user_input):
     if attractions_result.get("status") == "success":
         attractions_data = attractions_result.get("results", [])
         real_attractions = [a["name"] for a in attractions_data[:10]]
+        #st.success(f"✅ 找到 {len(attractions_data)} 个真实景点")
     else:
-        # 使用紧凑的警告
-        message_container.markdown(f"""
-        <div style="
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
-            border: 1px solid rgba(245, 158, 11, 0.3);
-            border-radius: 8px;
-            padding: 0.6rem;
-            margin: 0.3rem 0;
-        ">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: #f59e0b;">⚠️</span>
-                <span style="color: #e2e8f0; font-size: 0.9rem;">景点搜索失败: {attractions_result.get('message', '未知错误')[:30]}...</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.warning(f"景点搜索失败: {attractions_result.get('message')}")
     
-    # 步骤3：搜索餐厅
+    # 步骤3：搜索餐厅（高德地图）
+    status_text.text("🍽️ 正在搜索当地美食餐厅...")
+    progress_bar.progress(60)
+    
     restaurants_result = gaode_client.search_restaurants(
         city_name=user_input['destination'],
         city_location=city_location,
@@ -690,38 +365,23 @@ def generate_travel_plan(user_input):
     if restaurants_result.get("status") == "success":
         restaurants_data = restaurants_result.get("restaurants", [])
         real_restaurants = [r["name"] for r in restaurants_data[:10]]
+        #st.success(f"✅ 找到 {len(restaurants_data)} 个优质餐厅")
     else:
         restaurants_data = []
         real_restaurants = []
+        st.warning(f"餐厅搜索失败: {restaurants_result.get('message')}")
     
-    # 步骤4：AI生成行程
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-size: 0.9rem;">3</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">🤖 AI正在智能规划行程...</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # 步骤4：删除和风天气城市识别（不再需要）
+    status_text.text("🌍 正在获取城市信息...")
+    progress_bar.progress(70)
+    
+    # 初始化天气相关变量
+    weather_data = None
+    weather_city_name = city_name  # 使用高德地图的城市名
+    
+    # 步骤5：AI生成行程
+    status_text.text("🤖 AI正在整合信息，生成个性化行程...")
+    progress_bar.progress(80)
     
     client = get_client()
     ai_input = {
@@ -740,62 +400,29 @@ def generate_travel_plan(user_input):
     result = client.generate_travel_plan(ai_input)
     
     if "❌" in result.get("raw_response", "") or "⏰" in result.get("raw_response", ""):
-        message_container.markdown(f"""
-        <div style="
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(248, 113, 113, 0.1) 100%);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 8px;
-            padding: 0.6rem;
-            margin: 0.3rem 0;
-        ">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="color: #ef4444;">❌</span>
-                <span style="color: #e2e8f0; font-size: 0.9rem;">生成失败: {result.get('raw_response', '未知错误')[:40]}...</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.error(result["raw_response"])
+        progress_bar.progress(100)
         return None
     
-    # 步骤5：获取天气预测
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-size: 0.9rem;">4</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">🌤️ 正在获取天气预测...</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    weather_data = {"status": "error", "message": "天气服务暂不可用"}
-    weather_city_name = city_name
+    # 步骤6：获取天气预测（使用智能天气服务）
+    status_text.text("🌤️ 正在获取智能天气预测...")
+    progress_bar.progress(90)
     
     try:
+        # 导入智能天气服务
         from utils.smart_weather_service import SmartWeatherService
         smart_weather = SmartWeatherService(use_cache=True)
+        
+        # 智能识别城市（可处理任意输入）
         city_info = smart_weather.search_city_id(user_input['destination'])
         
         if city_info:
             weather_city_name = city_info.get("city_name", user_input['destination'])
             city_id = city_info.get("city_id", "")
+            #st.success(f"✅ 已智能识别: {weather_city_name} (来源: {city_info.get('source')})")
+            # 如果是智能生成的，给用户提示
+            #if "智能" in city_info.get("source", ""):
+                #st.info(f"💡 系统正在为您智能生成'{weather_city_name}'的天气预报")
             
             # 计算旅行天数
             from datetime import datetime
@@ -808,107 +435,81 @@ def generate_travel_plan(user_input):
             weather_result = smart_weather.get_weather_forecast(city_id, forecast_days_needed)
             
             if weather_result:
+                # 格式化数据
                 weather_data = smart_weather.format_for_display(
                     weather_result, 
                     weather_city_name, 
                     user_input['start_date'], 
                     user_input['end_date']
                 )
-    except:
-        pass
+                
+                if weather_data and weather_data.get("status") == "success":
+                    forecast_count = len(weather_data.get('forecast', []))
+                    #st.success(f"✅ 已获取{forecast_count}天天气预测")
+                else:
+                    weather_data = {
+                        "status": "error", 
+                        "message": "天气数据格式化失败"
+                    }
+                    st.warning("⚠️ 天气数据获取不完整")
+            else:
+                weather_data = {
+                    "status": "error", 
+                    "message": "获取天气数据失败"
+                }
+                st.warning("⚠️ 天气数据获取失败")
+        else:
+            weather_data = {
+                "status": "error", 
+                "message": "无法识别城市"
+            }
+            st.warning("⚠️ 无法识别城市，跳过天气获取")
+            
+    except ImportError:
+        st.warning("⚠️ 智能天气服务模块未找到，跳过天气获取")
+        weather_data = {
+            "status": "error", 
+            "message": "天气服务模块未安装"
+        }
+    except Exception as e:
+        st.error(f"天气服务错误: {str(e)}")
+        weather_data = {
+            "status": "error", 
+            "message": f"天气服务暂时不可用: {str(e)}"
+        }
     
-    # 步骤6：智能预算分析
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.8rem;
-        margin: 0.5rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="
-                width: 24px;
-                height: 24px;
-                border-radius: 50%;
-                background: linear-gradient(45deg, #667eea, #764ba2);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                flex-shrink: 0;
-            ">
-                <span style="color: white; font-size: 0.9rem;">5</span>
-            </div>
-            <div>
-                <strong style="color: #e2e8f0;">💰 正在进行预算分析...</strong>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    budget_analysis = {"城市": city_name, "错误": "预算分析暂不可用"}
-    
+    # 步骤7：智能预算分析
+    status_text.text("💰 正在分析行程预算...")
+    progress_bar.progress(95)
+
     try:
         from utils.smart_budget_analyzer import SmartBudgetAnalyzer
+        
+        # 使用智能分析器
         budget_analysis = SmartBudgetAnalyzer.analyze(
             user_input=user_input,
             city_name=city_name,
             attractions_count=len(attractions_data)
         )
-    except:
-        pass
-    
-    # 步骤7：完成提示 - 紧凑显示三个成功消息
-    message_container.markdown("""
-    <div style="
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.1) 100%);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        border-radius: 8px;
-        padding: 0.6rem;
-        margin: 0.3rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #10b981;">✅</span>
-            <span style="color: #e2e8f0; font-size: 0.9rem; font-weight: 500;">行程生成完成！</span>
-        </div>
-    </div>
-    
-    <div style="
-        background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(96, 165, 250, 0.2);
-        border-radius: 8px;
-        padding: 0.6rem;
-        margin: 0.3rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #60a5fa;">🤖</span>
-            <span style="color: #e2e8f0; font-size: 0.9rem;">正在智能识别: <strong>{city_name}</strong></span>
-        </div>
-    </div>
-    
-    <div style="
-        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-        border: 1px solid rgba(139, 92, 246, 0.3);
-        border-radius: 8px;
-        padding: 0.6rem;
-        margin: 0.3rem 0;
-    ">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="color: #8b5cf6;">💰</span>
-            <span style="color: #e2e8f0; font-size: 0.9rem; font-weight: 500;">预算分析完成</span>
-        </div>
-    </div>
-    """.format(city_name=city_name), unsafe_allow_html=True)
-    
-    # 清空消息容器
-    time.sleep(1)
-    message_container.empty()
-    
+        
+        st.success("✅ 预算分析完成")
+        
+    except Exception as e:
+        st.warning(f"⚠️ 预算分析失败: {str(e)}")
+        budget_analysis = {
+            "城市": city_name,
+            "错误": f"预算分析异常: {str(e)}",
+            "建议": "请检查输入格式"
+        }
+    # 步骤7：完成
+    status_text.text("🎨 正在为您渲染最终行程...")
+    progress_bar.progress(100)
+
     # 确保返回所有必要数据
     return {
         'plan': result["formatted_plan"],
-        'city_name': city_name,
-        'weather_city_name': weather_city_name,
+        'city_name': city_name,  # 高德地图的城市名
+        'weather_city_name': weather_city_name,  # 智能天气服务的城市名
         'city_location': city_location,
         'attractions_data': attractions_data,
         'restaurants_data': restaurants_data,
@@ -916,7 +517,7 @@ def generate_travel_plan(user_input):
         'real_restaurants': real_restaurants,
         'ai_input': ai_input,
         'result': result,
-        'weather_data': weather_data,
+        'weather_data': weather_data,  # 包含天气数据
         'budget_analysis': budget_analysis,
     }
     
@@ -942,38 +543,35 @@ def display_real_locations(generation_result):
                     st.markdown(f"- {rest}")
 #"""显示详细行程"""
 def display_detailed_plan(plan):
-    """显示美化后的详细行程"""
+    """显示详细行程"""
     if "overview" in plan:
-        with st.container():
-            st.markdown('<div class="plan-card">', unsafe_allow_html=True)
-            st.markdown("### 📖 行程概述")
-            st.markdown(plan.get("overview", ""))
-            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown("### 📖 行程概述")
+        st.markdown(plan.get("overview", ""))
     
     if "daily_plan" in plan and plan["daily_plan"]:
         st.markdown("### 📅 每日详细安排")
-        
         for day in plan["daily_plan"]:
-            with st.expander(f"**第{day.get('day', '?')}天**", expanded=False):
+            with st.expander(f"**第{day.get('day', '?')}天**", expanded=True):
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.markdown('<div class="day-section">', unsafe_allow_html=True)
-                    st.markdown("#### 🌅 上午")
+                    st.markdown("**上午**")
                     st.markdown(day.get('morning', '暂无安排'))
-                    st.markdown('</div>', unsafe_allow_html=True)
                 with col2:
-                    st.markdown('<div class="day-section">', unsafe_allow_html=True)
-                    st.markdown("#### ☀️ 下午")
+                    st.markdown("**下午**")
                     st.markdown(day.get('afternoon', '暂无安排'))
-                    st.markdown('</div>', unsafe_allow_html=True)
                 with col3:
-                    st.markdown('<div class="day-section">', unsafe_allow_html=True)
-                    st.markdown("#### 🌃 晚上")
+                    st.markdown("**晚上**")
                     st.markdown(day.get('evening', '暂无安排'))
-                    st.markdown('</div>', unsafe_allow_html=True)
-                
                 if day.get('tips'):
                     st.info(f"💡 **小贴士**: {day['tips']}")
+    
+    if "budget_advice" in plan and plan["budget_advice"]:
+        st.markdown("### 💰 预算建议")
+        st.markdown(plan.get("budget_advice", ""))
+    
+    if "travel_story" in plan and plan["travel_story"]:
+        st.markdown("### 📖 旅行叙事")
+        st.markdown(plan.get("travel_story", ""))
 #"""显示真实酒店推荐"""
 def display_hotel_recommendations(city_name, city_location, user_budget):
     """显示真实酒店推荐"""
@@ -1378,7 +976,7 @@ def _display_simple_budget(budget_analysis):
         
         st.dataframe(df, use_container_width=True, hide_index=True)
 def display_results(generation_result, user_input):
-    """显示美化后的生成结果"""
+    """显示生成结果"""
     if not generation_result:
         st.error("❌ 生成结果为空")
         return
@@ -1389,152 +987,117 @@ def display_results(generation_result, user_input):
     st.markdown("## ✨ 您的个性化旅行计划")
     st.markdown(f"**目的地**: {generation_result.get('city_name', '未知')} | **天数**: {user_input.get('days', 1)}天 | **人数**: {user_input.get('people', 1)}人")
     st.markdown("---")
-    
-    # ========== 创建包含餐厅和酒店的导航栏 ==========
-    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-        "📅 行程安排", 
-        "🌤️ 天气预报", 
-        "🗺️ 路线规划", 
-        "💰 预算分析",
-        "🏨 酒店推荐",  # 新增酒店选项卡
-        "🍽️ 餐厅推荐",  # 新增餐厅选项卡
-        "📋 详情导出"
-    ])
-    
-    with tab1:
-        # 显示详细行程
-        display_detailed_plan(plan)
-        
-        # 显示真实地点
-        display_real_locations(generation_result)
-    
-    with tab2:
-        # 天气显示部分
-        if generation_result.get('weather_data'):
-            _display_weather_fallback(generation_result['weather_data'])
-        else:
-            st.info("天气数据正在加载中...")
-    
-    with tab3:
-        # 显示地图和路线规划
-        display_ai_route_planning(generation_result, user_input)
-    
-    with tab4:
-        # 预算显示
-        if generation_result.get('budget_analysis'):
-            try:
-                from utils.smart_budget_analyzer import SmartBudgetAnalyzer
-                SmartBudgetAnalyzer.display(generation_result['budget_analysis'])
-            except Exception as e:
-                _display_simple_budget(generation_result['budget_analysis'])
-    
-    with tab5:  # 酒店推荐选项卡
+    if generation_result.get('budget_analysis'):
         try:
-            # 使用原有的酒店推荐函数
+            from utils.smart_budget_analyzer import SmartBudgetAnalyzer
+            SmartBudgetAnalyzer.display(generation_result['budget_analysis'])
+        except Exception as e:
+            st.warning(f"预算显示失败: {str(e)}")
+    
+    # 显示详细行程
+    display_detailed_plan(plan)
+    
+    # 天气显示部分 - 修复版
+    if generation_result and generation_result.get('weather_data'):
+        weather_data = generation_result['weather_data']
+        
+        try:
+            # 尝试导入天气显示模块
+            from utils.weather_display import WeatherDisplay
+            
+            if hasattr(WeatherDisplay, 'display_detailed_weather'):
+                # 方法存在，正常调用
+                WeatherDisplay.display_detailed_weather(weather_data)
+            else:
+                # 方法不存在，使用备选方案
+                st.markdown("---")
+                st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+                _display_weather_fallback(weather_data)
+                
+        except ImportError:
+            # 模块导入失败，使用简易天气显示
+            st.markdown("---")
+            st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+            _display_weather_fallback(weather_data)
+            
+        except AttributeError:
+            # 属性错误，使用备选方案
+            st.markdown("---")
+            st.markdown(f"## 🌤️ {weather_data.get('city', '目的地')} 旅行天气")
+            _display_weather_fallback(weather_data)
+        
+        except Exception as e:
+            st.error(f"天气显示错误: {str(e)}")
+    
+    # 显示地图和路线规划
+    display_ai_route_planning(generation_result, user_input)
+    
+    # 显示真实地点
+    display_real_locations(generation_result)
+    
+    # 也可以添加专门的路线规划调用
+    if len(generation_result.get('attractions_data', [])) >= 2:
+        try:
+            from utils.gaode_route_display import GaodeRouteDisplay
+            gaode_client = get_gaode_client()
+            
+            st.markdown("---")
+            st.markdown("## 🗺️ 详细路线规划")
+            
+            GaodeRouteDisplay.display_route_planning(
+                attractions=generation_result['attractions_data'][:5],
+                city=user_input['destination'],
+                gaode_client=gaode_client
+            )
+        except ImportError:
+            st.warning("⚠️ 路线规划模块不可用")
+        except Exception as e:
+            st.warning(f"路线规划功能暂时不可用: {str(e)}")
+    
+    # 酒店推荐（真实数据）
+    if user_input.get('include_hotel_links', False):
+        try:
             display_hotel_recommendations(
                 city_name=user_input['destination'],
                 city_location=generation_result.get('city_location', ''),
                 user_budget=user_input.get('budget', '中等')
             )
         except Exception as e:
-            st.error(f"酒店推荐功能暂时不可用: {str(e)}")
-            # 显示备用方案
-            st.info(f"""
-            ### 💡 酒店搜索备用方案
-            
-            您可以直接在以下平台搜索"{user_input['destination']}"酒店：
-            
-            **📱 推荐平台：**
-            - 携程旅行: https://hotels.ctrip.com
-            - 美团酒店: https://hotel.meituan.com  
-            - 飞猪旅行: https://www.fliggy.com
-            
-            **💰 预算建议：**
-            - {user_input.get('budget', '中等')}
-            - 建议提前预订享受优惠
-            """)
+            st.warning(f"酒店推荐功能暂时不可用: {str(e)}")
     
-    with tab6:  # 餐厅推荐选项卡
+    # 餐厅推荐
+    if user_input.get('budget'):  # 如果有预算信息
         try:
-            # 导入并使用餐厅显示模块
-            from utils.gaode_restaurant_display import GaodeRestaurantDisplay
-            
+            from utils.gaode_route_display import GaodeRestaurantDisplay
             gaode_client = get_gaode_client()
             GaodeRestaurantDisplay.display_restaurant_recommendations(
                 gaode_client=gaode_client,
                 city_name=user_input['destination'],
                 city_location=generation_result.get('city_location', ''),
                 user_budget=user_input.get('budget', '中等'),
-                restaurant_count=8
+                restaurant_count=6
             )
         except ImportError:
-            st.error("餐厅推荐模块导入失败")
-            # 尝试使用备用方案
-            try:
-                # 直接调用高德客户端搜索餐厅
-                gaode_client = get_gaode_client()
-                restaurants_result = gaode_client.search_restaurants(
-                    city_name=user_input['destination'],
-                    city_location=generation_result.get('city_location', ''),
-                    count=10,
-                    sort_by='rating'
-                )
-                
-                if restaurants_result.get("status") == "success":
-                    st.markdown("## 🍽️ 餐厅推荐")
-                    restaurants = restaurants_result.get("restaurants", [])
-                    
-                    if restaurants:
-                        # 显示餐厅列表
-                        for i, restaurant in enumerate(restaurants[:8], 1):
-                            col1, col2 = st.columns([3, 1])
-                            with col1:
-                                st.markdown(f"**{i}. {restaurant.get('name', '餐厅')}**")
-                                if restaurant.get('address'):
-                                    st.caption(f"📍 {restaurant['address'][:30]}")
-                                rating = restaurant.get('rating', '0')
-                                st.caption(f"⭐ {rating}分")
-                            with col2:
-                                if restaurant.get('price'):
-                                    st.caption(f"💰 {restaurant['price']}")
-                            st.markdown("---")
-                    else:
-                        st.info("暂无餐厅数据")
-                else:
-                    st.warning("餐厅数据获取失败")
-            except Exception as e:
-                st.error(f"餐厅推荐功能错误: {str(e)}")
+            st.warning("⚠️ 餐厅推荐模块不可用")
         except Exception as e:
-            st.error(f"餐厅推荐功能暂时不可用: {str(e)}")
+            st.warning(f"餐厅推荐功能暂时不可用: {str(e)}")
     
-    with tab7:
-        # 保存和导出选项
-        if user_input.get('save_plan', False):
-            try:
-                save_plan(generation_result, user_input['destination'])
-            except Exception as e:
-                st.warning(f"保存行程失败: {str(e)}")
-        
-        # 导出选项
+    # 保存行程
+    if user_input.get('save_plan', False):
         try:
-            show_export_options(plan, user_input['destination'])
+            save_plan(generation_result, user_input['destination'])
         except Exception as e:
-            st.warning(f"导出功能暂时不可用: {str(e)}")
-        
-        # 显示技术信息
-        with st.expander("📊 技术详情", expanded=False):
-            st.json({
-                "生成时间": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "城市坐标": generation_result.get('city_location', ''),
-                "景点数量": len(generation_result.get('attractions_data', [])),
-                "餐厅数量": len(generation_result.get('restaurants_data', [])),
-                "AI模型": "智谱AI",
-                "地图服务": "高德地图"
-            })
+            st.warning(f"保存行程失败: {str(e)}")
+    
+    # 导出选项
+    try:
+        show_export_options(plan, user_input['destination'])
+    except Exception as e:
+        st.warning(f"导出功能暂时不可用: {str(e)}")
 
 
 def _display_weather_fallback(weather_data):
-    """美化天气显示备选方案"""
+    """天气显示备选方案"""
     if not weather_data or weather_data.get("status") != "success":
         if weather_data and weather_data.get("message"):
             st.warning(f"⚠️ 天气数据: {weather_data.get('message')}")
@@ -1549,11 +1112,11 @@ def _display_weather_fallback(weather_data):
         st.info("暂无天气预报数据")
         return
     
-    st.markdown(f"### 🌤️ {city_name} 旅行天气 ({len(forecast)}天)")
+    st.markdown(f"### 📅 {city_name} 旅行天气 ({len(forecast)}天)")
     
-    # 创建天气卡片行
-    for i in range(0, len(forecast), 4):  # 每行最多4个
-        cols = st.columns(min(4, len(forecast) - i))
+    # 按行显示天气卡片
+    for i in range(0, len(forecast), 3):  # 每行最多3个
+        cols = st.columns(min(3, len(forecast) - i))
         
         for col_idx in range(len(cols)):
             idx = i + col_idx
@@ -1561,78 +1124,55 @@ def _display_weather_fallback(weather_data):
                 day = forecast[idx]
                 
                 with cols[col_idx]:
-                    # 美化天气卡片
+                    # 创建天气卡片
                     with st.container():
-                        st.markdown("""
-                        <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%); 
-                                    border: 1px solid #334155; 
-                                    border-radius: 12px; 
-                                    padding: 1rem; 
-                                    text-align: center;
-                                    transition: all 0.3s ease;">
-                        """, unsafe_allow_html=True)
-                        
                         # 日期
                         date_str = day.get('fxDate') or day.get('date') or f"第{idx+1}天"
                         weekday = _get_weekday_fallback(date_str)
                         
                         st.markdown(f"**{date_str}**")
                         if weekday:
-                            st.caption(f"📅 {weekday}")
+                            st.caption(weekday)
                         
-                        # 天气图标（大号）
-                        icon = day.get('iconDay') or day.get('weather_icon') or '🌈'
-                        st.markdown(f"<h1 style='text-align: center; margin: 0.5rem 0;'>{icon}</h1>", unsafe_allow_html=True)
+                        # 天气图标和描述
+                        col_icon, col_desc = st.columns([1, 2])
+                        with col_icon:
+                            icon = day.get('iconDay') or day.get('weather_icon') or '🌈'
+                            st.markdown(f"<h3 style='text-align: center; margin: 0;'>{icon}</h3>", unsafe_allow_html=True)
+                        with col_desc:
+                            weather = day.get('textDay') or day.get('weather_day') or '晴'
+                            st.markdown(f"**{weather}**")
                         
-                        # 天气描述
-                        weather = day.get('textDay') or day.get('weather_day') or '晴'
-                        st.markdown(f"**{weather}**")
-                        
-                        # 温度（带渐变色）
+                        # 温度
                         temp_max = day.get('tempMax') or day.get('temp_max') or '25'
                         temp_min = day.get('tempMin') or day.get('temp_min') or '15'
-                        st.markdown(f"""
-                        <div style="
-                            background: linear-gradient(90deg, #667eea, #764ba2);
-                            -webkit-background-clip: text;
-                            -webkit-text-fill-color: transparent;
-                            font-size: 1.5rem;
-                            font-weight: bold;
-                            margin: 0.5rem 0;
-                        ">
-                            {temp_min}° ~ {temp_max}°
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.markdown(f"🌡️ **{temp_min}°C ~ {temp_max}°C**")
                         
-                        # 详细信息
+                        # 其他信息
                         details = []
                         if day.get('humidity'):
                             details.append(f"💧 {day['humidity']}%")
                         if day.get('windDirDay') or day.get('wind_dir_day'):
                             wind = day.get('windDirDay') or day.get('wind_dir_day') or ''
-                            details.append(f"💨 {wind[:2]}")
+                            details.append(f"💨 {wind}")
                         if day.get('precip') and day.get('precip') != '0':
                             details.append(f"🌧️ {day['precip']}mm")
                         
                         if details:
-                            st.markdown(f"""
-                            <div style="
-                                background: rgba(255, 255, 255, 0.05);
-                                border-radius: 8px;
-                                padding: 0.5rem;
-                                margin-top: 0.5rem;
-                                font-size: 0.85rem;
-                            ">
-                                {' | '.join(details)}
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.caption(" | ".join(details))
                         
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        # 建议
+                        suggestions = day.get('suggestions', [])
+                        if suggestions:
+                            with st.expander("💡 建议", expanded=False):
+                                for suggestion in suggestions:
+                                    st.write(f"• {suggestion}")
     
-    # 数据来源信息
+    # 数据来源
     if weather_data.get('update_time'):
         source = weather_data.get('source', '智能天气系统')
         st.caption(f"🕒 更新时间: {weather_data['update_time']} | 数据来源: {source}")
+
 
 def _get_weekday_fallback(date_str):
     """获取星期几（备选方案）"""
