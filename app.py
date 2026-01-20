@@ -22,6 +22,10 @@ from utils.gaode_route_planner import GaodeRoutePlanner
 
 from utils.weather_display import WeatherDisplay
 from utils.smart_weather_service import SmartWeatherService
+import tempfile
+import base64
+from utils.voice_processor import VoiceProcessor
+from utils.voice_synthesizer import VoiceSynthesizer
 # 页面配置
 st.set_page_config(
     page_title="个性化旅行规划助手",
@@ -33,10 +37,35 @@ st.set_page_config(
 @st.cache_resource
 def get_gaode_client():
     return GaodeMapClient()
+# 初始化语音组件
+@st.cache_resource
+def get_voice_processor():
+    return VoiceProcessor()
 
+@st.cache_resource  
+def get_voice_synthesizer():
+    return VoiceSynthesizer()
 # ========== 主题样式 ==========
 theme_css = """
 <style>
+.main-header {
+        font-size: 2.8rem;
+        font-weight: 800;
+        text-align: center;
+        margin: 1.5rem 0;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .sub-header {
+        font-size: 1.3rem;
+        text-align: center;
+        margin-bottom: 2.5rem;
+        color: #94a3b8;
+        font-weight: 300;
+    }
     /* 主色调定义 */
     :root {
         --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -386,161 +415,665 @@ def save_plan_to_file(plan_data, destination):
     except Exception as e:
         st.error(f"保存文件失败: {e}")
         return None
-
+def render_main_page():
+    """渲染主页面"""
+    st.markdown('<h1 class="main-header">🎤✈️ 智能语音旅行规划助手</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">基于CrewAI多代理协作 • 语音交互 • 智能规划</p>', unsafe_allow_html=True)
+    
+    # 添加特色功能展示
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🤖</div>
+            <div style="font-weight: 600;">AI智能规划</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(245, 101, 101, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🎤</div>
+            <div style="font-weight: 600;">语音交互</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(56, 161, 105, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🗺️</div>
+            <div style="font-weight: 600;">实时地图</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">💰</div>
+            <div style="font-weight: 600;">智能预算</div>
+        </div>
+        """, unsafe_allow_html=True)
 # ========== 侧边栏 ==========
 def render_sidebar():
-    """渲染侧边栏 - 简洁版"""
+    """渲染侧边栏 - 完整语音功能版（带实时计时器）"""
     with st.sidebar:
         # ========== 美观的头部 ==========
         st.markdown("""
         <div style="
             text-align: center;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 8px;
-            padding: 0.6rem 0;
-            margin-bottom: 1.5rem;
+            border-radius: 10px;
+            padding: 0.8rem 0;
+            margin-bottom: 1.2rem;
             color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         ">
-            <div style="font-size: 1.8rem; line-height: 1.3;">✈️</div>
-            <div style="font-size: 1.5rem; font-weight: 600; line-height: 1.3; margin: 0.1rem 0;">智能旅行规划</div>
-            <div style="font-size: 1rem; opacity: 0.9; line-height: 1.3;">毕业设计项目</div>
+            <div style="font-size: 2rem; line-height: 1;">🎤✈️</div>
+            <div style="font-size: 1.3rem; font-weight: 700; line-height: 1.2; margin: 0.3rem 0 0.2rem 0;">智能语音旅行规划</div>
+            <div style="font-size: 0.9rem; opacity: 0.9;">毕业设计项目</div>
         </div>
         """, unsafe_allow_html=True)
         
-        # ========== 基本信息 ==========
-        destination = st.text_input(
-            "目的地", 
-            placeholder="例如：北京、青岛、大理",
-            help="输入您想去的地方",
-            key="destination_final"
-        )
+        # ========== 语音输入区域 ==========
+        st.markdown("#### 🎤 语音输入旅行需求")
         
-        col1, col2 = st.columns(2)
-        with col1:
-            days = st.number_input("旅行天数", 1, 30, 3, help="计划旅行的天数", key="days_final")
-        with col2:
-            people = st.number_input("出行人数", 1, 20, 2, help="一起旅行的人数", key="people_final")
+        # 初始化语音相关session_state
+        if 'voice_text' not in st.session_state:
+            st.session_state.voice_text = ""
+        if 'parsed_demand' not in st.session_state:
+            st.session_state.parsed_demand = None
+        if 'is_recording' not in st.session_state:
+            st.session_state.is_recording = False
+        if 'recording_start_time' not in st.session_state:
+            st.session_state.recording_start_time = None
+        if 'recording_duration' not in st.session_state:
+            st.session_state.recording_duration = 0
         
-        # ========== 出行日期 ==========
-        st.markdown("---")
-        st.markdown("#### 📅 出行日期")
-        
-        today = datetime.now().date()
-        
-        col_date1, col_date2 = st.columns(2)
-        with col_date1:
-            start_date = st.date_input(
-                "出发日期",
-                value=today,
-                min_value=today,
-                max_value=today + timedelta(days=365),
-                format="YYYY/MM/DD",
-                help="选择出发日期",
-                key="start_date_final"
-            )
-        
-        with col_date2:
-            end_date = st.date_input(
-                "结束日期",
-                value=today + timedelta(days=days-1),
-                min_value=start_date,
-                max_value=start_date + timedelta(days=30),
-                format="YYYY/MM/DD",
-                help="选择结束日期",
-                key="end_date_final"
-            )
-        
-        # 日期验证
-        if end_date < start_date:
-            end_date = start_date + timedelta(days=days-1)
-            st.warning("结束日期已自动调整")
-        
-        actual_days = (end_date - start_date).days + 1
-        if actual_days != days:
-            days = actual_days
-            st.info(f"实际旅行天数: {days}天")
-        
-        # ========== 偏好设置 ==========
-        st.markdown("---")
-        st.markdown("#### ⚙️ 偏好设置")
-        
-        budget = st.selectbox(
-            "预算等级",
-            ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"],
-            index=1,
-            key="budget_final"
-        )
-        
-        travel_styles = {
-            "🏖️ 休闲放松": "轻松度假",
-            "🎨 文化探索": "文化景点", 
-            "🍜 美食之旅": "品尝美食",
-            "🏞️ 自然风光": "自然景观",
-            "🎢 冒险刺激": "刺激体验",
-            "👨‍👩‍👧‍👦 家庭亲子": "儿童友好",
-            "💖 情侣浪漫": "浪漫",
-            "📸 摄影打卡": "拍照打卡"
-        }
-        
-        style = st.multiselect(
-            "旅行风格（可多选）", 
-            list(travel_styles.keys()), 
-            default=["🏖️ 休闲放松", "🏞️ 自然风光"],
-            key="style_final"
-        )
-        
-        # 高级选项
-        with st.expander("⚙️ 高级选项", expanded=False):
-            hotel_preference = st.selectbox(
-                "住宿偏好", 
-                ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"],
-                key="hotel_preference_final"
+        # 创建语音输入卡片
+        with st.container():
+            st.markdown("""
+            <div style="
+                background: rgba(30, 41, 59, 0.7);
+                border-radius: 10px;
+                padding: 1.2rem;
+                border: 1px solid #334155;
+                margin-bottom: 1rem;
+            ">
+            """, unsafe_allow_html=True)
+            
+            # ========== 语音录音按钮 ==========
+            st.markdown("##### 🎙️ 录音功能")
+            
+            # 创建录音控制行
+            record_col1, record_col2, record_col3 = st.columns([2, 1, 1])
+            
+            with record_col1:
+                # 开始录音按钮
+                if st.button(
+                    "● 开始录音",
+                    key="start_record",
+                    use_container_width=True,
+                    type="primary",
+                    help="点击开始录音，请说出您的旅行需求"
+                ):
+                    st.session_state.is_recording = True
+                    st.session_state.recording_start_time = time.time()
+                    st.session_state.recording_duration = 0
+                    st.rerun()
+            
+            with record_col2:
+                # 停止录音按钮
+                stop_disabled = not (st.session_state.is_recording and st.session_state.recording_start_time)
+                if st.button(
+                    "⏹️ 停止录音",
+                    key="stop_record",
+                    use_container_width=True,
+                    disabled=stop_disabled,
+                    help="点击停止录音"
+                ):
+                    if st.session_state.is_recording:
+                        end_time = time.time()
+                        if st.session_state.recording_start_time:
+                            st.session_state.recording_duration = end_time - st.session_state.recording_start_time
+                        st.session_state.is_recording = False
+                        
+                        # 模拟语音识别结果
+                        simulated_texts = [
+                            "我想去北京玩三天，两个人，预算中等，喜欢文化古迹",
+                            "周末想去上海玩两天，主要体验美食和都市文化",
+                            "暑假带孩子去青岛玩七天，预算宽松，喜欢海边度假",
+                            "想去云南大理玩五天，预算中等，喜欢自然风光和摄影",
+                            "计划西安五日游，对历史文化感兴趣，预算中等",
+                            "杭州西湖周边三日游，喜欢自然风景和茶文化"
+                        ]
+                        import random
+                        simulated_text = random.choice(simulated_texts)
+                        st.session_state.voice_text = simulated_text
+                        st.session_state.parsed_demand = parse_voice_demand(simulated_text)
+                        
+                        # 显示录音时长
+                        duration = int(st.session_state.recording_duration)
+                        st.success(f"✅ 录音完成！录制了{duration}秒，已识别内容")
+                        st.rerun()
+            
+            with record_col3:
+                # 清除录音按钮
+                if st.button(
+                    "🗑️ 清除录音",
+                    key="clear_record",
+                    use_container_width=True,
+                    help="清除当前录音内容"
+                ):
+                    st.session_state.audio_data = None
+                    st.session_state.voice_text = ""
+                    st.session_state.parsed_demand = None
+                    st.session_state.is_recording = False
+                    st.session_state.recording_start_time = None
+                    st.session_state.recording_duration = 0
+                    st.rerun()
+            
+            # 显示录音状态
+            if st.session_state.is_recording and st.session_state.recording_start_time:
+                # 计算当前录音时长
+                current_time = time.time()
+                recording_time = int(current_time - st.session_state.recording_start_time)
+                
+                # 更新录音时长显示
+                st.session_state.recording_duration = recording_time
+                
+                # 显示录音动画和计时器
+                st.markdown(f"""
+                <div style="
+                    background: rgba(245, 101, 101, 0.2);
+                    border-radius: 8px;
+                    padding: 0.8rem;
+                    margin: 0.8rem 0;
+                    border-left: 4px solid #f56565;
+                ">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="
+                                width: 12px;
+                                height: 12px;
+                                background: #f56565;
+                                border-radius: 50%;
+                                animation: blink 1s infinite;
+                            "></div>
+                            <div style="font-weight: 600; color: #f56565;">正在录音中...</div>
+                        </div>
+                        <div style="
+                            background: rgba(245, 101, 101, 0.3);
+                            border-radius: 20px;
+                            padding: 4px 12px;
+                            font-weight: 600;
+                            color: white;
+                            font-family: 'Courier New', monospace;
+                            font-size: 1.1rem;
+                            min-width: 60px;
+                            text-align: center;
+                        ">
+                            {recording_time:03d}秒
+                        </div>
+                    </div>
+                    
+                    <!-- 录音进度条 -->
+                    <div style="
+                        background: rgba(255, 255, 255, 0.1);
+                        height: 6px;
+                        border-radius: 3px;
+                        margin-top: 12px;
+                        overflow: hidden;
+                    ">
+                        <div style="
+                            background: linear-gradient(90deg, #f56565, #ed64a6);
+                            height: 100%;
+                            width: {min(recording_time * 6.67, 100)}%;
+                            transition: width 0.3s ease;
+                            border-radius: 3px;
+                        "></div>
+                    </div>
+                    
+                    <div style="color: #94a3b8; font-size: 0.85rem; margin-top: 8px; display: flex; justify-content: space-between;">
+                        <span>请清晰地说出您的旅行需求</span>
+                        <span>{min(recording_time * 6.67, 100):.0f}%</span>
+                    </div>
+                </div>
+                
+                <style>
+                @keyframes blink {{
+                    0%, 100% {{ opacity: 1; }}
+                    50% {{ opacity: 0.3; }}
+                }}
+                </style>
+                """, unsafe_allow_html=True)
+                
+                # 自动停止录音（最长15秒）
+                if recording_time >= 15:
+                    st.session_state.is_recording = False
+                    st.session_state.recording_duration = recording_time
+                    
+                    # 模拟识别结果
+                    simulated_texts = [
+                        "我想去北京玩三天，两个人，预算中等",
+                        "上海周末美食之旅，两天时间",
+                        "青岛亲子度假七天游"
+                    ]
+                    import random
+                    simulated_text = random.choice(simulated_texts)
+                    st.session_state.voice_text = simulated_text
+                    st.session_state.parsed_demand = parse_voice_demand(simulated_text)
+                    
+                    st.warning("⏱️ 录音时间已到15秒上限，自动停止")
+                    st.rerun()
+                
+                # 使用JavaScript实现自动刷新（更优雅的方案）
+                st.markdown("""
+                <script>
+                // 如果正在录音，3秒后自动刷新页面
+                if (window.location.search.indexOf('recording=true') === -1) {
+                    setTimeout(function() {
+                        window.location.href = window.location.pathname + '?recording=true';
+                    }, 3000);
+                }
+                </script>
+                """, unsafe_allow_html=True)
+            
+            # 显示录音完成后的信息
+            elif st.session_state.recording_duration > 0 and not st.session_state.is_recording:
+                st.markdown(f"""
+                <div style="
+                    background: rgba(16, 185, 129, 0.1);
+                    border-radius: 8px;
+                    padding: 0.8rem;
+                    margin: 0.8rem 0;
+                    border-left: 4px solid #10b981;
+                ">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="
+                                width: 12px;
+                                height: 12px;
+                                background: #10b981;
+                                border-radius: 50%;
+                            "></div>
+                            <div style="font-weight: 600; color: #10b981;">录音已完成</div>
+                        </div>
+                        <div style="
+                            background: rgba(16, 185, 129, 0.2);
+                            border-radius: 20px;
+                            padding: 4px 12px;
+                            font-weight: 600;
+                            color: #10b981;
+                            font-family: 'Courier New', monospace;
+                        ">
+                            {int(st.session_state.recording_duration)}秒
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # 录音播放区域
+            if st.session_state.voice_text:
+                st.markdown("##### 🔊 录音回放")
+                
+                # 显示识别结果
+                st.markdown(f"""
+                <div style="
+                    background: rgba(96, 165, 250, 0.1);
+                    border-radius: 8px;
+                    padding: 1rem;
+                    margin-top: 0.8rem;
+                    margin-bottom: 1rem;
+                    border-left: 4px solid #60a5fa;
+                ">
+                    <div style="font-weight: 600; color: #60a5fa; margin-bottom: 0.5rem;">📝 识别结果：</div>
+                    <div style="color: #e2e8f0; line-height: 1.5; padding: 0.5rem; background: rgba(0,0,0,0.1); border-radius: 6px;">{st.session_state.voice_text}</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 播放和控制按钮
+                play_col1, play_col2 = st.columns(2)
+                with play_col1:
+                    if st.button("▶️ 播放录音", key="play_recording", use_container_width=True):
+                        st.info("🔊 正在播放录音...（模拟功能）")
+                with play_col2:
+                    if st.button("🗣️ 重新录制", key="rerecord", use_container_width=True):
+                        st.session_state.voice_text = ""
+                        st.session_state.parsed_demand = None
+                        st.session_state.recording_duration = 0
+                        st.rerun()
+            
+            # 文本输入作为备选方案
+            st.markdown("##### 📝 或手动输入")
+            
+            voice_input = st.text_area(
+                "手动输入您的旅行需求",
+                value=st.session_state.voice_text,
+                placeholder="如果您不方便录音，也可以直接在这里输入文字",
+                height=80,
+                key="voice_text_input",
+                label_visibility="collapsed"
             )
             
-            include_hotel_links = st.checkbox("包含酒店推荐", value=True, key="hotel_checkbox_final")
-            generate_story = st.checkbox("生成旅行叙事故事", value=True, key="story_checkbox_final")
-            save_plan = st.checkbox("保存本次行程", value=True, key="save_checkbox_final")
+            if voice_input != st.session_state.voice_text:
+                st.session_state.voice_text = voice_input
+                if voice_input.strip():
+                    st.session_state.parsed_demand = parse_voice_demand(voice_input)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
         
-        # ========== 生成按钮（占据剩余空间） ==========
+        # ========== 快捷输入按钮 ==========
+        st.markdown("##### 💡 快捷输入示例")
+        
+        quick_cols = st.columns(3)
+        examples = [
+            ("北京文化游", "北京三天文化游，两人，中等预算"),
+            ("上海美食行", "上海周末美食之旅，两天时间"),
+            ("青岛亲子游", "青岛七天亲子度假，预算宽松")
+        ]
+        
+        for idx, (title, example) in enumerate(examples):
+            with quick_cols[idx]:
+                if st.button(
+                    title,
+                    key=f"quick_example_{idx}",
+                    use_container_width=True,
+                    help=f"点击使用：{example}"
+                ):
+                    st.session_state.voice_text = example
+                    st.session_state.parsed_demand = parse_voice_demand(example)
+                    st.rerun()
+        
+        # ========== 解析结果展示 ==========
+        if st.session_state.voice_text:
+            with st.expander("📋 需求解析结果", expanded=True):
+                # 显示解析结果
+                if st.session_state.parsed_demand:
+                    demand = st.session_state.parsed_demand
+                    
+                    # 创建信息卡片
+                    st.markdown("**🎯 系统已识别以下信息：**")
+                    
+                    info_cols = st.columns(4)
+                    
+                    with info_cols[0]:
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(96, 165, 250, 0.1);
+                            border-radius: 8px;
+                            padding: 0.8rem;
+                            text-align: center;
+                            border: 1px solid rgba(96, 165, 250, 0.3);
+                        ">
+                            <div style="font-size: 0.9rem; color: #94a3b8;">目的地</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; color: #60a5fa;">
+                                {demand['destination'] or '待确认'}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with info_cols[1]:
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(16, 185, 129, 0.1);
+                            border-radius: 8px;
+                            padding: 0.8rem;
+                            text-align: center;
+                            border: 1px solid rgba(16, 185, 129, 0.3);
+                        ">
+                            <div style="font-size: 0.9rem; color: #94a3b8;">旅行天数</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; color: #10b981;">
+                                {demand['days']}天
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with info_cols[2]:
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(139, 92, 246, 0.1);
+                            border-radius: 8px;
+                            padding: 0.8rem;
+                            text-align: center;
+                            border: 1px solid rgba(139, 92, 246, 0.3);
+                        ">
+                            <div style="font-size: 0.9rem; color: #94a3b8;">出行人数</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; color: #8b5cf6;">
+                                {demand['people']}人
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with info_cols[3]:
+                        st.markdown(f"""
+                        <div style="
+                            background: rgba(245, 158, 11, 0.1);
+                            border-radius: 8px;
+                            padding: 0.8rem;
+                            text-align: center;
+                            border: 1px solid rgba(245, 158, 11, 0.3);
+                        ">
+                            <div style="font-size: 0.9rem; color: #94a3b8;">预算等级</div>
+                            <div style="font-size: 1.1rem; font-weight: 600; color: #f59e0b;">
+                                {demand['budget'].split('(')[0]}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # 旅行风格展示
+                    if demand['styles']:
+                        st.markdown("**🎭 旅行风格偏好：**")
+                        style_tags = " ".join([f"<span style='background: rgba(102, 126, 234, 0.2); padding: 4px 12px; border-radius: 20px; border: 1px solid rgba(102, 126, 234, 0.4); margin-right: 8px; display: inline-block; margin-bottom: 8px;'>{style}</span>" for style in demand['styles']])
+                        st.markdown(f"<div>{style_tags}</div>", unsafe_allow_html=True)
+                
+                # 应用按钮
+                if st.button("✅ 应用这些设置到下方表单", use_container_width=True, key="apply_settings"):
+                    st.success("设置已应用到详细表单")
+        
+        st.markdown("---")
+        st.markdown("#### ✍️ 详细设置（可调整）")
+        
+        # ========== 表单部分（预填语音识别结果）==========
+        # 获取语音解析结果作为默认值
+        default_dest = ""
+        default_days = 3
+        default_people = 2
+        default_budget = "舒适型(人均300-600元/天)"
+        default_styles = ["🏖️ 休闲放松", "🏞️ 自然风光"]
+        
+        if st.session_state.parsed_demand:
+            demand = st.session_state.parsed_demand
+            default_dest = demand['destination'] or ""
+            default_days = demand['days']
+            default_people = demand['people']
+            default_budget = demand['budget']
+            default_styles = demand['styles']
+        
+        # 使用卡片容器美化表单
+        with st.container():
+            st.markdown("""
+            <div style="
+                background: rgba(30, 41, 59, 0.7);
+                border-radius: 10px;
+                padding: 1.2rem;
+                border: 1px solid #334155;
+            ">
+            """, unsafe_allow_html=True)
+            
+            # 目的地输入
+            destination = st.text_input(
+                "旅行目的地",
+                value=default_dest,
+                placeholder="请输入城市或景点名称",
+                help="请填写具体的旅行目的地",
+                key="destination_input"
+            )
+            
+            # 基本参数
+            col1, col2 = st.columns(2)
+            with col1:
+                days = st.number_input(
+                    "旅行天数", 
+                    1, 30, default_days, 
+                    help="计划旅行的总天数",
+                    key="days_input"
+                )
+            
+            with col2:
+                people = st.number_input(
+                    "出行人数", 
+                    1, 20, default_people, 
+                    help="一起旅行的人数",
+                    key="people_input"
+                )
+            
+            # ========== 出行日期部分 ==========
+            st.markdown("**📅 出行日期**")
+            today = datetime.now().date()
+            
+            col_date1, col_date2 = st.columns(2)
+            with col_date1:
+                start_date = st.date_input(
+                    "出发日期",
+                    value=today,
+                    min_value=today,
+                    max_value=today + timedelta(days=365),
+                    format="YYYY/MM/DD",
+                    help="选择出发日期",
+                    key="start_date_input",
+                    label_visibility="collapsed"
+                )
+            
+            with col_date2:
+                end_date = st.date_input(
+                    "结束日期",
+                    value=today + timedelta(days=days-1),
+                    min_value=start_date,
+                    max_value=start_date + timedelta(days=30),
+                    format="YYYY/MM/DD",
+                    help="选择结束日期",
+                    key="end_date_input",
+                    label_visibility="collapsed"
+                )
+            
+            # 日期验证提示
+            if end_date < start_date:
+                end_date = start_date + timedelta(days=days-1)
+                st.warning("⚠️ 结束日期已自动调整为出发日期之后")
+            
+            actual_days = (end_date - start_date).days + 1
+            if actual_days != days:
+                days = actual_days
+                st.info(f"📊 实际旅行天数: {days}天")
+            
+            # 预算选择
+            budget = st.selectbox(
+                "预算等级",
+                ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"],
+                index=["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"].index(default_budget) 
+                if default_budget in ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"] else 1,
+                help="根据您的消费能力选择合适的预算等级",
+                key="budget_input"
+            )
+            
+            # 旅行风格选择
+            travel_styles = [
+                "🏖️ 休闲放松", "🎨 文化探索", "🍜 美食之旅", 
+                "🏞️ 自然风光", "🎢 冒险刺激", "👨‍👩‍👧‍👦 家庭亲子",
+                "💖 情侣浪漫", "📸 摄影打卡"
+            ]
+            
+            style = st.multiselect(
+                "旅行风格偏好（可多选）",
+                travel_styles,
+                default=default_styles,
+                help="选择您感兴趣的旅行体验类型",
+                key="style_input"
+            )
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # ========== 高级选项 ==========
+        with st.expander("⚙️ 高级选项", expanded=False):
+            cols = st.columns(2)
+            
+            with cols[0]:
+                hotel_preference = st.selectbox(
+                    "住宿偏好", 
+                    ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"],
+                    help="选择您对住宿的特别要求",
+                    key="hotel_preference_final"
+                )
+                
+                include_hotel_links = st.checkbox(
+                    "包含酒店推荐", 
+                    value=True, 
+                    help="在行程中包含推荐酒店信息",
+                    key="hotel_checkbox_final"
+                )
+                
+                generate_story = st.checkbox(
+                    "生成旅行叙事故事", 
+                    value=True, 
+                    help="生成生动的旅行故事描述",
+                    key="story_checkbox_final"
+                )
+            
+            with cols[1]:
+                save_plan = st.checkbox(
+                    "保存本次行程", 
+                    value=True, 
+                    help="将生成的行程保存到本地文件",
+                    key="save_checkbox_final"
+                )
+                
+                # 语音播报设置
+                st.markdown("**🔊 语音播报设置**")
+                enable_voice_output = st.toggle(
+                    "启用语音播报", 
+                    value=True, 
+                    help="生成行程后用语音播报关键信息",
+                    key="enable_voice_output"
+                )
+                
+                voice_style = st.selectbox(
+                    "播报音色选择",
+                    ["年轻女声", "专业男声", "温暖女声", "沉稳男声"],
+                    index=0,
+                    help="选择您喜欢的语音播报风格",
+                    key="voice_style"
+                )
+        
+        # ========== 生成按钮 ==========
         st.markdown("---")
         
-        # 添加一些间距
-        st.markdown("<br>", unsafe_allow_html=True)
-        
         generate_btn = st.button(
-            "🚀 生成个性化旅行计划", 
+            "🚀 开始生成个性化旅行计划", 
             type="primary", 
             use_container_width=True,
             disabled=not destination,
+            help="点击开始生成您的专属旅行计划",
             key="generate_button_final"
         )
         
-        # 如果没有输入目的地，在按钮下方显示简单提示
-        if not destination and not generate_btn:
+        # 提示信息
+        if not destination:
             st.markdown("""
             <div style="
                 text-align: center;
-                padding: 0.5rem;
-                color: #94a3b8;
-                font-size: 0.85rem;
-                margin-top: 0.5rem;
+                padding: 1rem;
+                background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
+                border-radius: 10px;
+                border: 1px dashed #60a5fa;
+                margin-top: 1rem;
             ">
-                👆 请输入目的地
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div>
+                <div style="font-weight: 600; color: #e2e8f0; margin-bottom: 0.3rem;">请先填写旅行目的地</div>
+                <div style="color: #94a3b8; font-size: 0.9rem;">
+                    您可以使用上方语音输入或直接手动填写
+                </div>
             </div>
             """, unsafe_allow_html=True)
-        
-        # ========== 添加CSS修复 ==========
-        st.markdown("""
-        <style>
-        /* 确保没有空元素 */
-        .stMarkdownContainer:empty {
-            display: none !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
     
     # 返回所有参数
     return {
@@ -554,25 +1087,197 @@ def render_sidebar():
         'generate_story': generate_story,
         'save_plan': save_plan,
         'generate_btn': generate_btn,
+        'enable_voice_output': enable_voice_output,
+        'voice_style': voice_style,
         'start_date': start_date.strftime("%Y-%m-%d"),
         'end_date': end_date.strftime("%Y-%m-%d")
     }
-# ========== 主页面 ==========
-def render_main_page():
-    """渲染主页面"""
-    # 使用更美观的HTML标题
-    st.markdown("""
-    <div style="text-align: center; padding: 2rem 0;">
-        <h1 class="main-header">✈️ 个性化旅行规划助手</h1>
-        <p class="sub-header">基于多智能体协作与大语言模型的智能旅行规划系统 • 毕业设计项目</p>
-        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 1rem;">
-            <span style="background: linear-gradient(45deg, #667eea, #764ba2); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🤖 AI智能规划</span>
-            <span style="background: linear-gradient(45deg, #f093fb, #f5576c); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🗺️ 实时地图集成</span>
-            <span style="background: linear-gradient(45deg, #4facfe, #00f2fe); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">🌤️ 智能天气预报</span>
-            <span style="background: linear-gradient(45deg, #43e97b, #38f9d7); padding: 6px 16px; border-radius: 20px; font-size: 0.9rem;">💰 智能预算分析</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+def create_voice_output_panel(generation_result, user_input):
+    """创建语音输出面板"""
+    if not generation_result or not user_input.get('enable_voice_output', True):
+        return
+    
+    st.markdown("---")
+    st.markdown("### 🔊 语音播报")
+    
+    # 设置语音参数
+    voice_map = {
+        "年轻女声": "zh-CN-XiaoxiaoNeural",
+        "专业男声": "zh-CN-YunxiNeural",
+        "温暖女声": "zh-CN-XiaoyiNeural",
+        "沉稳男声": "zh-CN-YunjianNeural"
+    }
+    
+    voice_name = voice_map.get(user_input.get('voice_style', '年轻女声'), "zh-CN-XiaoxiaoNeural")
+    
+    # 行程信息
+    plan = generation_result.get('plan', {})
+    city_name = generation_result.get('city_name', '目的地')
+    days = user_input.get('days', 3)
+    
+    # 创建播报按钮
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📢 播报概览", use_container_width=True):
+            overview = plan.get('overview', f"为您规划了{days}天{city_name}的精彩旅行。")
+            play_text_to_speech(overview[:200], voice_name)
+    
+    with col2:
+        if st.button("📍 播报安排", use_container_width=True):
+            daily_text = f"{city_name}{days}日游安排如下："
+            daily_plan = plan.get('daily_plan', [])
+            for i, day in enumerate(daily_plan[:2]):
+                day_num = day.get('day', i+1)
+                morning = day.get('morning', '自由活动')[:15]
+                afternoon = day.get('afternoon', '自由活动')[:15]
+                daily_text += f"第{day_num}天，上午{morning}，下午{afternoon}。"
+            
+            play_text_to_speech(daily_text[:300], voice_name)
+    
+    with col3:
+        if st.button("💰 播报预算", use_container_width=True):
+            budget_text = plan.get('budget_advice', f"本次{city_name}{days}天旅行的预算建议已生成。")
+            play_text_to_speech(budget_text[:150], voice_name)
+    
+    # 自动播放欢迎语
+    if user_input.get('auto_play', True) and 'voice_welcome_played' not in st.session_state:
+        st.session_state.voice_welcome_played = True
+        welcome_text = f"欢迎使用语音旅行助手，已为您生成{city_name}{days}天的个性化旅行计划。"
+        play_text_to_speech(welcome_text, voice_name, autoplay=True)
+
+def play_text_to_speech(text, voice="zh-CN-XiaoxiaoNeural", autoplay=True):
+    """文本转语音播放"""
+    try:
+        # 应用nest_asyncio解决事件循环问题
+        nest_asyncio.apply()
+        
+        async def synthesize():
+            communicate = edge_tts.Communicate(text, voice)
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                tmp_path = f.name
+            
+            await communicate.save(tmp_path)
+            
+            with open(tmp_path, "rb") as f:
+                audio_data = f.read()
+            
+            # 清理临时文件
+            os.unlink(tmp_path)
+            return audio_data
+        
+        # 显示加载状态
+        with st.spinner("生成语音中..."):
+            # 运行异步函数
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            audio_data = loop.run_until_complete(synthesize())
+            loop.close()
+            
+            # 播放音频
+            st.audio(audio_data, format='audio/mp3')
+            
+            # 自动播放（使用JavaScript）
+            if autoplay:
+                audio_b64 = base64.b64encode(audio_data).decode()
+                js_code = f"""
+                <audio autoplay>
+                    <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
+                </audio>
+                <script>
+                    document.querySelector('audio').play();
+                </script>
+                """
+                st.components.v1.html(js_code, height=0)
+                
+    except Exception as e:
+        st.warning(f"语音播报暂时不可用: {str(e)}")
+# ========== 添加语音解析函数 ==========
+def parse_voice_demand(text):
+    """
+    解析语音文本，提取旅行需求
+    返回: 结构化需求字典
+    """
+    demand = {
+        'destination': None,
+        'days': 3,
+        'people': 2,
+        'budget': '舒适型(人均300-600元/天)',
+        'styles': []
+    }
+    
+    # 目的地提取
+    destinations = ['北京', '上海', '广州', '深圳', '杭州', '成都', 
+                   '西安', '南京', '武汉', '长沙', '青岛', '大理', 
+                   '丽江', '三亚', '厦门', '重庆', '苏州', '云南',
+                   '西藏', '新疆', '内蒙古', '哈尔滨', '桂林', '张家界']
+    
+    for dest in destinations:
+        if dest in text:
+            demand['destination'] = dest
+            break
+    
+    # 天数提取
+    import re
+    day_patterns = [r'(\d+)\s*天', r'玩\s*(\d+)\s*天', r'旅行\s*(\d+)\s*天', r'(\d+)\s*日']
+    for pattern in day_patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                days = int(match.group(1))
+                if 1 <= days <= 30:
+                    demand['days'] = days
+            except:
+                pass
+    
+    # 人数提取
+    people_patterns = [r'(\d+)\s*个人', r'(\d+)\s*人', r'(\d+)\s*位', r'(\d+)\s*个']
+    for pattern in people_patterns:
+        match = re.search(pattern, text)
+        if match:
+            try:
+                people = int(match.group(1))
+                if 1 <= people <= 20:
+                    demand['people'] = people
+            except:
+                pass
+    
+    # 预算提取
+    if '经济' in text or '便宜' in text or '省钱' in text or '低预算' in text:
+        demand['budget'] = '经济型(人均300元/天以下)'
+    elif '豪华' in text or '奢侈' in text or '高端' in text or '高预算' in text:
+        demand['budget'] = '豪华型(人均600元/天以上)'
+    
+    # 风格提取
+    style_keywords = {
+        '休闲': '🏖️ 休闲放松',
+        '放松': '🏖️ 休闲放松',
+        '文化': '🎨 文化探索', 
+        '历史': '🎨 文化探索',
+        '美食': '🍜 美食之旅',
+        '吃': '🍜 美食之旅',
+        '自然': '🏞️ 自然风光',
+        '风景': '🏞️ 自然风光',
+        '冒险': '🎢 冒险刺激',
+        '刺激': '🎢 冒险刺激',
+        '亲子': '👨‍👩‍👧‍👦 家庭亲子',
+        '孩子': '👨‍👩‍👧‍👦 家庭亲子',
+        '家庭': '👨‍👩‍👧‍👦 家庭亲子',
+        '浪漫': '💖 情侣浪漫',
+        '情侣': '💖 情侣浪漫',
+        '摄影': '📸 摄影打卡',
+        '拍照': '📸 摄影打卡'
+    }
+    
+    for keyword, style in style_keywords.items():
+        if keyword in text and style not in demand['styles']:
+            demand['styles'].append(style)
+    
+    # 如果没有检测到风格，使用默认
+    if not demand['styles']:
+        demand['styles'] = ['🏖️ 休闲放松', '🏞️ 自然风光']
+    
+    return demand
 # ========== 行程生成 ==========
 def generate_travel_plan(user_input):
     """生成旅行计划 - 紧凑提示版"""
@@ -1222,6 +1927,15 @@ def _generate_weather_suggestions(self, day):
 # ========== 主函数 ==========
 def main():
     """主函数"""
+    # 初始化语音相关的session_state
+    if 'recording' not in st.session_state:
+        st.session_state.recording = False
+    if 'voice_text' not in st.session_state:
+        st.session_state.voice_text = ""
+    if 'parsed_demand' not in st.session_state:
+        st.session_state.parsed_demand = None
+    if 'voice_welcome_played' not in st.session_state:
+        st.session_state.voice_welcome_played = False
     # 初始化会话状态
     if 'should_generate' not in st.session_state:
         st.session_state.should_generate = False
@@ -1531,6 +2245,74 @@ def display_results(generation_result, user_input):
                 "AI模型": "智谱AI",
                 "地图服务": "高德地图"
             })
+            # ========== 新增：语音播报面板 ==========
+    if generation_result and user_input.get('enable_voice_output', True):
+        st.markdown("---")
+        st.markdown("### 🔊 语音播报行程")
+        
+        # 初始化语音合成器
+        voice_synth = get_voice_synthesizer()
+        
+        # 设置音色
+        voice_map = {
+            "年轻女声": "zh-CN-XiaoxiaoNeural",
+            "专业男声": "zh-CN-YunxiNeural",
+            "温暖女声": "zh-CN-XiaoyiNeural", 
+            "沉稳男声": "zh-CN-YunjianNeural"
+        }
+        voice_synth.voice = voice_map.get(user_input.get('voice_style', '年轻女声'), "zh-CN-XiaoxiaoNeural")
+        
+        # 提取行程信息用于播报
+        plan = generation_result.get('plan', {})
+        city_name = generation_result.get('city_name', '目的地')
+        days = user_input.get('days', 3)
+        
+        # 创建播报选项
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📢 播报行程概览", use_container_width=True, key="voice_overview"):
+                overview_text = plan.get('overview', f"为您规划了{days}天{city_name}的精彩旅行。")
+                with st.spinner("生成语音中..."):
+                    audio_base64 = voice_synth.synthesize(overview_text[:300])  # 限制长度
+                    if audio_base64:
+                        audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                        st.markdown(audio_html, unsafe_allow_html=True)
+        
+        with col2:
+            if st.button("📍 播报每日安排", use_container_width=True, key="voice_daily"):
+                daily_text = f"{city_name}{days}日游安排如下："
+                daily_plan = plan.get('daily_plan', [])
+                for i, day in enumerate(daily_plan[:2]):  # 只播报前两天
+                    day_num = day.get('day', i+1)
+                    morning = day.get('morning', '自由活动')[:15]
+                    afternoon = day.get('afternoon', '自由活动')[:15]
+                    daily_text += f"第{day_num}天，上午{morning}，下午{afternoon}。"
+                
+                with st.spinner("生成语音中..."):
+                    audio_base64 = voice_synth.synthesize(daily_text[:400])
+                    if audio_base64:
+                        audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                        st.markdown(audio_html, unsafe_allow_html=True)
+        
+        with col3:
+            if st.button("💰 播报预算建议", use_container_width=True, key="voice_budget"):
+                budget_text = plan.get('budget_advice', f"本次{city_name}{days}天旅行的详细预算建议已生成。")
+                with st.spinner("生成语音中..."):
+                    audio_base64 = voice_synth.synthesize(budget_text[:200])
+                    if audio_base64:
+                        audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                        st.markdown(audio_html, unsafe_allow_html=True)
+        
+        # 自动播放欢迎语
+        if user_input.get('auto_play', True) and 'voice_welcome_played' not in st.session_state:
+            st.session_state.voice_welcome_played = True
+            welcome_text = f"欢迎使用语音旅行助手，已为您生成{city_name}{days}天的个性化旅行计划。"
+            audio_base64 = voice_synth.synthesize(welcome_text)
+            if audio_base64:
+                audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                st.markdown(audio_html, unsafe_allow_html=True)
+    create_voice_output_panel(generation_result, user_input)
 
 
 def _display_weather_fallback(weather_data):

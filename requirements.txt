@@ -8,6 +8,19 @@ plotly  # 交互式图表
 crewai==0.28.8
 langchain-community==0.0.20
 streamlit==1.29.0
-python-dotenv==1.0.0
 streamlit-extras  # 额外组件
 streamlit-lottie  # 动画效果
+streamlit-webrtc  # 实时语音采集
+openai-whisper    # 或使用国内API如阿里云、讯飞的语音识别
+pyttsx3           # 本地文本转语音
+edge-tts          # 使用微软Edge的语音引擎
+SpeechRecognition # 备选方案
+pydub             # 音频处理
+
+# 语音功能依赖
+streamlit-audiorec==0.0.11  # 录音组件（注意名称）
+speechrecognition==3.10.0   # 语音识别
+pydub==0.25.1               # 音频处理
+edge-tts==6.1.9             # 高质量语音合成
+nest-asyncio==1.5.8         # 异步支持
+pyaudio==0.2.11             # 麦克风访问
