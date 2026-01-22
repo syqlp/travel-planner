@@ -1,26 +1,41 @@
+# === 核心依赖 ===
 streamlit>=1.28.0
-streamlit-option-menu # 美观的侧边栏菜单
 requests>=2.31.0
 python-dotenv>=1.0.0
-pandas>=2.0.0  # 用于天气图表
-altair>=5.0.0  # 用于天气图表
-plotly  # 交互式图表
+pandas>=2.0.0
+altair>=5.0.0
+plotly>=5.17.0
+folium>=0.14.0
+streamlit-folium>=0.15.0
+
+# === CrewAI & LangChain ===
 crewai==0.28.8
 langchain-community==0.0.20
-streamlit==1.29.0
-streamlit-extras  # 额外组件
-streamlit-lottie  # 动画效果
-streamlit-webrtc  # 实时语音采集
-openai-whisper    # 或使用国内API如阿里云、讯飞的语音识别
-pyttsx3           # 本地文本转语音
-edge-tts          # 使用微软Edge的语音引擎
-SpeechRecognition # 备选方案
-pydub             # 音频处理
+langchain-core==0.1.0
+langchain==0.1.0
 
-# 语音功能依赖
-streamlit-audiorec==0.0.11  # 录音组件（注意名称）
-speechrecognition==3.10.0   # 语音识别
-pydub==0.25.1               # 音频处理
-edge-tts==6.1.9             # 高质量语音合成
-nest-asyncio==1.5.8         # 异步支持
-pyaudio==0.2.11             # 麦克风访问
+# === 语音识别相关（关键）===
+baidu-aip==4.16.15           # ✅ 百度语音SDK（你已经有了）
+SpeechRecognition==3.10.1    # ✅ 本地录音功能
+PyAudio==0.2.11              # ✅ 麦克风访问（Windows可能需要whl）
+pydub==0.25.1                # ✅ 音频处理
+
+# === 语音合成相关 ===
+edge-tts==6.1.9              # ✅ 高质量语音合成
+nest-asyncio==1.5.8          # ✅ 异步支持
+pyttsx3==2.90                # ✅ 备选语音合成
+
+# === 可选增强功能 ===
+streamlit-option-menu==0.3.6  # 美观的侧边栏菜单
+streamlit-extras==0.3.6       # 额外组件
+openai-whisper==20231117      # OpenAI语音识别（备选）
+streamlit-webrtc==0.44.4      # 实时语音采集（较复杂）
+streamlit-lottie==0.0.3       # 动画效果
+streamlit-audiorec==0.0.11    # 录音组件（备选）
+soundfile==0.12.1             # 音频文件处理
+
+# === 其他工具 ===
+numpy>=1.24.0
+pillow>=10.0.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
