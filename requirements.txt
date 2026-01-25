@@ -31,7 +31,7 @@ streamlit-extras==0.3.6       # 额外组件
 openai-whisper==20231117      # OpenAI语音识别（备选）
 streamlit-webrtc==0.44.4      # 实时语音采集（较复杂）
 streamlit-lottie==0.0.3       # 动画效果
-streamlit-audiorec==0.0.11    # 录音组件（备选）
+#streamlit-audiorec==0.0.11    # 录音组件（备选）
 soundfile==0.12.1             # 音频文件处理
 
 # === 其他工具 ===

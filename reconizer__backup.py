@@ -32,55 +32,48 @@ class VoiceRecognizer:
             self.p = pyaudio.PyAudio()
             self.pyaudio_available = True
             
-            # 选择麦克风设备
-            self.device_index = self._find_microphone()  # 自动查找麦克风
+            # 选择麦克风设备（使用你的设备索引1）
+            self.device_index = 1  # 你的麦克风阵列设备
             
         except Exception as e:
             print(f"❌ PyAudio初始化失败: {e}")
             self.p = None
             self.pyaudio_available = False
         
+        # 保留speech_recognition作为备选
+        try:
+            import speech_recognition as sr
+            self.sr = sr
+            self.sr_available = True
+        except:
+            self.sr_available = False
+        
         # 录音数据
         self.audio_bytes = None
-    
-    def _find_microphone(self):
-        """自动查找可用的麦克风设备"""
-        try:
-            info = self.p.get_host_api_info_by_index(0)
-            num_devices = info.get('deviceCount')
-            
-            for i in range(num_devices):
-                device_info = self.p.get_device_info_by_host_api_device_index(0, i)
-                if device_info.get('maxInputChannels') > 0:
-                    print(f"🎤 找到麦克风设备 {i}: {device_info.get('name')}")
-                    return i
-            
-            # 如果没有找到，尝试使用默认设备
-            print("⚠️ 未找到指定麦克风，使用默认设备")
-            return None
-        except:
-            return None
     
     def check_dependencies(self):
         """检查依赖"""
         if self.api_available and self.pyaudio_available:
             return True, "✅ 直接录音功能就绪"
+        elif self.api_available and self.sr_available:
+            return True, "✅ 备用录音功能就绪"
         else:
-            return False, "❌ 请确保已安装pyaudio和baidu-aip包"
+            return False, "❌ 语音功能需要安装依赖"
     
-    def record_audio_streaming(self, stop_flag_callback=None):
-        """流式录音，直到收到停止信号"""
+    def record_audio(self, duration=8):
+        """录制音频 - 使用直接录音"""
         if not self.pyaudio_available:
             return False, "直接录音功能不可用"
         
         try:
-            # 录音参数
+            # 录音参数（严格按照百度要求）
             CHUNK = 1024
-            FORMAT = pyaudio.paInt16
-            CHANNELS = 1
-            RATE = 16000
+            FORMAT = pyaudio.paInt16      # 16位
+            CHANNELS = 1                  # 单声道
+            RATE = 16000                  # 16kHz
+            RECORD_SECONDS = duration
             
-            print(f"🎤 开始流式录音...")
+            print(f"🎤 开始直接录音: {duration}秒")
             print(f"📊 参数: {RATE}Hz, {CHANNELS}声道, {FORMAT}格式")
             
             # 打开音频流
@@ -95,20 +88,9 @@ class VoiceRecognizer:
             
             # 录音
             frames = []
-            print("录音中... 请说话")
-            
-            # 持续录音直到收到停止信号
-            while True:
-                if stop_flag_callback and stop_flag_callback():
-                    print("收到停止信号，结束录音")
-                    break
-                
-                try:
-                    data = stream.read(CHUNK, exception_on_overflow=False)
-                    frames.append(data)
-                except Exception as e:
-                    print(f"读取音频数据出错: {e}")
-                    continue
+            for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+                data = stream.read(CHUNK)
+                frames.append(data)
             
             # 停止流
             stream.stop_stream()
@@ -116,12 +98,6 @@ class VoiceRecognizer:
             
             # 合并数据
             self.audio_bytes = b''.join(frames)
-            
-            # 确保音频数据足够长（至少1秒）
-            min_audio_length = RATE * 2 * 2  # 2秒的音频数据
-            if len(self.audio_bytes) < min_audio_length:
-                return False, "录音时间太短，请至少说2秒钟"
-            
             print(f"✅ 录音完成: {len(self.audio_bytes)} 字节")
             
             # 保存录音文件（用于调试）
@@ -138,61 +114,39 @@ class VoiceRecognizer:
             
             print(f"💾 已保存: {filename}")
             
-            return True, filename
+            return True, "录音成功"
             
         except Exception as e:
             print(f"❌ 直接录音失败: {e}")
-            return False, f"录音失败: {str(e)}"
+            # 尝试备用方法
+            return self._record_audio_fallback(duration)
     
-    def record_audio_fixed(self, duration=8):
-        """固定时长的录音"""
-        if not self.pyaudio_available:
-            return False, "直接录音功能不可用"
+    def _record_audio_fallback(self, duration):
+        """备用录音方法（使用speech_recognition）"""
+        if not self.sr_available:
+            return False, "没有可用的录音方法"
         
         try:
-            CHUNK = 1024
-            FORMAT = pyaudio.paInt16
-            CHANNELS = 1
-            RATE = 16000
-            RECORD_SECONDS = duration
+            r = self.sr.Recognizer()
             
-            print(f"🎤 开始录音: {duration}秒")
-            
-            stream = self.p.open(
-                format=FORMAT,
-                channels=CHANNELS,
-                rate=RATE,
-                input=True,
-                input_device_index=self.device_index,
-                frames_per_buffer=CHUNK
-            )
-            
-            frames = []
-            for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-                data = stream.read(CHUNK)
-                frames.append(data)
-            
-            stream.stop_stream()
-            stream.close()
-            
-            self.audio_bytes = b''.join(frames)
-            
-            # 保存文件
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"data/recordings/app_{timestamp}.wav"
-            os.makedirs("data/recordings", exist_ok=True)
-            
-            wf = wave.open(filename, 'wb')
-            wf.setnchannels(CHANNELS)
-            wf.setsampwidth(self.p.get_sample_size(FORMAT))
-            wf.setframerate(RATE)
-            wf.writeframes(self.audio_bytes)
-            wf.close()
-            
-            return True, filename
-            
+            with self.sr.Microphone(device_index=self.device_index) as source:
+                print("🔄 使用备用录音方法...")
+                r.adjust_for_ambient_noise(source, duration=1.0)
+                
+                audio = r.listen(
+                    source,
+                    timeout=duration + 5,
+                    phrase_time_limit=duration
+                )
+                
+                # 转换为bytes
+                self.audio_bytes = audio.get_wav_data()
+                print(f"✅ 备用录音完成: {len(self.audio_bytes)} 字节")
+                
+                return True, "录音成功"
+                
         except Exception as e:
-            print(f"❌ 录音失败: {e}")
+            print(f"❌ 备用录音失败: {e}")
             return False, f"录音失败: {str(e)}"
     
     def transcribe_audio(self):
@@ -249,30 +203,11 @@ class VoiceRecognizer:
         }
         
         # 目的地
-        destinations = ['北京', '上海', '广州', '深圳', '杭州', '成都', '西安', '南京', '青岛', '厦门', '三亚', '重庆']
+        destinations = ['北京', '上海', '广州', '深圳', '杭州', '成都', '西安', '南京']
         for dest in destinations:
             if dest in text:
                 demand['destination'] = dest
                 break
-        
-        # 如果没找到预设城市，尝试提取地名
-        if not demand['destination']:
-            # 匹配"去XX"、"到XX"、"想去XX"等模式
-            dest_patterns = [
-                r'去(.+?)[玩旅]',
-                r'到(.+?)[玩旅]',
-                r'想去(.+?)[玩旅]',
-                r'到(.+?)旅游',
-                r'去(.+?)旅游'
-            ]
-            
-            for pattern in dest_patterns:
-                match = re.search(pattern, text)
-                if match:
-                    dest = match.group(1).strip()
-                    if len(dest) <= 6:  # 简单验证，避免提取过长文本
-                        demand['destination'] = dest
-                        break
         
         # 天数
         day_match = re.search(r'(\d+)\s*天', text)
@@ -295,12 +230,10 @@ class VoiceRecognizer:
                 pass
         
         # 预算
-        if '经济' in text or '便宜' in text or '预算少' in text:
+        if '经济' in text or '便宜' in text:
             demand['budget'] = '经济型(人均300元/天以下)'
-        elif '豪华' in text or '奢侈' in text or '预算高' in text:
+        elif '豪华' in text or '奢侈' in text:
             demand['budget'] = '豪华型(人均600元/天以上)'
-        elif '中等' in text or '一般' in text or '适中' in text:
-            demand['budget'] = '舒适型(人均300-600元/天)'
         
         # 风格
         style_keywords = {
@@ -311,15 +244,12 @@ class VoiceRecognizer:
             '冒险': '🎢 冒险刺激',
             '亲子': '👨‍👩‍👧‍👦 家庭亲子',
             '浪漫': '💖 情侣浪漫',
-            '摄影': '📸 摄影打卡',
-            '购物': '🛍️ 购物体验',
-            '历史': '🏛️ 历史遗迹'
+            '摄影': '📸 摄影打卡'
         }
         
         for keyword, style in style_keywords.items():
             if keyword in text:
-                if style not in demand['styles']:
-                    demand['styles'].append(style)
+                demand['styles'].append(style)
         
         if not demand['styles']:
             demand['styles'] = ['🏖️ 休闲放松', '🏞️ 自然风光']
@@ -331,3 +261,34 @@ class VoiceRecognizer:
         if hasattr(self, 'p') and self.p:
             self.p.terminate()
             print("✅ 已清理PyAudio资源")
+
+# 简单测试
+def test():
+    vr = VoiceRecognizer()
+    
+    success, msg = vr.check_dependencies()
+    print(f"依赖检查: {msg}")
+    
+    if "就绪" in msg:
+        print("\n🎤 测试录音（3秒）...")
+        success, msg = vr.record_audio(3)
+        
+        if success:
+            print("\n🔍 测试识别...")
+            success, text = vr.transcribe_audio()
+            
+            if success:
+                print(f"\n✅ 识别结果: '{text}'")
+                
+                parsed = vr.parse_travel_demand(text)
+                print(f"\n🎯 解析结果:")
+                print(f"  目的地: {parsed['destination']}")
+                print(f"  天数: {parsed['days']}")
+                print(f"  人数: {parsed['people']}")
+                print(f"  预算: {parsed['budget']}")
+                print(f"  风格: {parsed['styles']}")
+        
+        vr.cleanup()
+
+if __name__ == "__main__":
+    test()

@@ -4,7 +4,6 @@ import json
 import os
 import time 
 from datetime import datetime, timedelta
-from datetime import datetime as dt, timedelta
 from streamlit_folium import st_folium
 
 # 导入工具模块
@@ -583,658 +582,496 @@ def check_voice_dependencies():
         return False, f"缺少必要的库: {e}\n请安装: pip install SpeechRecognition pyaudio"
     except Exception as e:
         return False, f"依赖检查失败: {str(e)}"
-# ========== 侧边栏 ==========
-def render_sidebar():
-    """渲染侧边栏 - 完整修复版"""
-    # 在函数内部导入，避免变量名冲突
-    from datetime import datetime as dt, timedelta
+def render_main_page():
+    """渲染主页面 - 添加语音状态显示"""
+    st.markdown('<h1 class="main-header">🎤✈️ 智能语音旅行规划助手</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">语音交互 • 智能识别 • 一键生成</p>', unsafe_allow_html=True)
     
-    with st.sidebar:
-        # ========== 初始化所有session_state属性 ==========
-        if 'voice_text' not in st.session_state:
-            st.session_state.voice_text = ""
-        if 'parsed_demand' not in st.session_state:
-            st.session_state.parsed_demand = None
-        if 'is_recording' not in st.session_state:
-            st.session_state.is_recording = False
-        if 'recording_error' not in st.session_state:
-            st.session_state.recording_error = None
+    # 显示当前语音识别状态
+    if st.session_state.get('voice_recognition_status') in ['recording', 'processing']:
+        status_container = st.empty()
         
-        # 表单自动填充相关
-        if 'form_destination' not in st.session_state:
-            st.session_state.form_destination = ""
-        if 'form_days' not in st.session_state:
-            st.session_state.form_days = 3
-        if 'form_people' not in st.session_state:
-            st.session_state.form_people = 2
-        if 'form_budget_index' not in st.session_state:
-            st.session_state.form_budget_index = 1
-        if 'form_styles' not in st.session_state:
-            st.session_state.form_styles = ["🏖️ 休闲放松", "🏞️ 自然风光"]
+        if st.session_state.voice_recognition_status == 'recording':
+            with status_container.container():
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(248, 113, 113, 0.1) 100%);
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    border-radius: 10px;
+                    padding: 1.5rem;
+                    margin: 1rem 0;
+                    text-align: center;
+                ">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔴</div>
+                    <div style="font-weight: 700; color: #ef4444; font-size: 1.2rem; margin-bottom: 0.5rem;">
+                        正在录音...
+                    </div>
+                    <div style="color: #94a3b8;">
+                        请清晰说出您的旅行需求，然后点击侧边栏的"停止"按钮
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         
-        # ========== 美观的头部 ==========
+        elif st.session_state.voice_recognition_status == 'processing':
+            with status_container.container():
+                st.markdown("""
+                <div style="
+                    background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+                    border: 1px solid rgba(245, 158, 11, 0.3);
+                    border-radius: 10px;
+                    padding: 1.5rem;
+                    margin: 1rem 0;
+                    text-align: center;
+                ">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🟡</div>
+                    <div style="font-weight: 700; color: #f59e0b; font-size: 1.2rem; margin-bottom: 0.5rem;">
+                        正在识别语音...
+                    </div>
+                    <div style="color: #94a3b8;">
+                        请稍候，系统正在处理您的语音
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    # 原有的特色功能展示
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
         st.markdown("""
-        <div style="
-            text-align: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 10px;
-            padding: 0.8rem 0;
-            margin-bottom: 1.2rem;
-            color: white;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        ">
-            <div style="font-size: 2rem; line-height: 1;">🎤✈️</div>
-            <div style="font-size: 1.3rem; font-weight: 700; line-height: 1.2; margin: 0.3rem 0 0.2rem 0;">智能语音旅行规划</div>
-            <div style="font-size: 0.9rem; opacity: 0.9;">毕业设计项目</div>
+        <div style="text-align: center; padding: 1rem; background: rgba(102, 126, 234, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🎤</div>
+            <div style="font-weight: 600;">语音输入</div>
         </div>
         """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🤖</div>
+            <div style="font-weight: 600;">AI智能规划</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">🗺️</div>
+            <div style="font-weight: 600;">实时地图</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 10px;">
+            <div style="font-size: 2rem;">💰</div>
+            <div style="font-weight: 600;">智能预算</div>
+        </div>
+        """, unsafe_allow_html=True)
+# ========== 侧边栏 ==========
+def render_sidebar():
+    """渲染侧边栏 - 新版语音交互界面"""
+    with st.sidebar:
+        # ========== 初始化状态 ==========
+        if 'voice_recognition_status' not in st.session_state:
+            st.session_state.voice_recognition_status = 'idle'  # idle, recording, processing, completed
+        if 'voice_recognized_text' not in st.session_state:
+            st.session_state.voice_recognized_text = ""
+        if 'parsed_demand' not in st.session_state:
+            st.session_state.parsed_demand = None
+        if 'show_manual_input' not in st.session_state:
+            st.session_state.show_manual_input = False
         
-        # ========== 语音输入区域 ==========
-        st.markdown("#### 🎤 语音输入旅行需求")
+        # ========== 美观的头部 ==========
+        st.markdown("""<div style="text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 0.8rem 0; margin-bottom: 1.2rem; color: white; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);"><div style="font-size: 2rem; line-height: 1;">🎤✈️</div><div style="font-size: 1.3rem; font-weight: 700; line-height: 1.2; margin: 0.3rem 0 0.2rem 0;">语音旅行规划</div><div style="font-size: 0.9rem; opacity: 0.9;">说出您的旅行需求</div></div>""", unsafe_allow_html=True)
         
-        # 创建语音输入卡片
+        # ========== 语音控制面板 ==========
+        st.markdown("### 🎤 语音输入控制")
+        
         with st.container():
             st.markdown("""<div style="background: rgba(30, 41, 59, 0.7); border-radius: 10px; padding: 1.2rem; border: 1px solid #334155; margin-bottom: 1rem;">""", unsafe_allow_html=True)
             
-            # ========== 语音录音按钮 ==========
-            st.markdown("##### 🎙️ 语音输入")
+            # 状态显示
+            status_col1, status_col2 = st.columns([3, 1])
+            with status_col1:
+                status = st.session_state.voice_recognition_status
+                status_text = {
+                    'idle': '🟢 就绪',
+                    'recording': '🔴 录音中...',
+                    'processing': '🟡 识别中...',
+                    'completed': '✅ 识别完成'
+                }.get(status, '🟢 就绪')
+                
+                st.markdown(f"**状态**: {status_text}")
             
-            # 检查依赖状态
-            try:
-                from utils.voice_recognizer_final_baidu import VoiceRecognizer
-                voice_recognizer = VoiceRecognizer()
-                success, dep_message = voice_recognizer.check_dependencies()
-            except Exception as e:
-                success = False
-                dep_message = f"初始化失败: {str(e)}"
-                voice_recognizer = None
+            with status_col2:
+                if st.session_state.voice_recognition_status == 'recording':
+                    duration = st.session_state.get('recording_duration', 0)
+                    st.markdown(f"**⏱️** {duration}秒")
             
-            # 显示依赖状态
-            if not success:
-                st.markdown(f"""
-                <div style="
-                    background: rgba(245, 158, 11, 0.1);
-                    border-radius: 8px;
-                    padding: 0.8rem;
-                    margin-bottom: 1rem;
-                    border-left: 4px solid #f59e0b;
-                ">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #f59e0b;">⚠️</span>
-                        <span style="color: #e2e8f0; font-weight: 600;">语音功能需要安装依赖</span>
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.5rem; padding-left: 24px;">
-                        {dep_message}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown("---")
             
-            # 创建录音控制行
-            record_col1, record_col2, record_col3 = st.columns([2, 1, 1])
+            # 控制按钮
+            col_start, col_stop, col_clear = st.columns(3)
             
-            with record_col1:
+            with col_start:
                 # 开始录音按钮
                 if st.button(
-                    "● 开始说话",
-                    key="start_record",
+                    "🎤 开始说话",
+                    key="start_recording_new",
                     use_container_width=True,
-                    type="primary",
-                    disabled=not success or st.session_state.is_recording,
-                    help="点击开始说话，请说出您的旅行需求"
+                    type="primary" if st.session_state.voice_recognition_status != 'recording' else "secondary",
+                    disabled=st.session_state.voice_recognition_status == 'recording'
                 ):
-                    st.session_state.is_recording = True
-                    st.session_state.recording_error = None
-                    st.success("🎤 开始录音...请说话（说完后点击停止）")
+                    # 开始录音
+                    st.session_state.voice_recognition_status = 'recording'
+                    st.session_state.recording_start_time = time.time()
+                    st.session_state.recording_duration = 0
+                    st.session_state.voice_recognized_text = ""
+                    st.session_state.parsed_demand = None
+                    st.rerun()
             
-            with record_col2:
-                # 停止录音并识别按钮 - 使用测试成功的方法
+            with col_stop:
+                # 停止录音按钮
                 if st.button(
-                    "⏹️ 停止并识别",
-                    key="stop_record",
+                    "⏹️ 停止",
+                    key="stop_recording_new",
                     use_container_width=True,
-                    disabled=not st.session_state.is_recording or not success,
-                    help="停止当前录音并开始识别"
+                    disabled=st.session_state.voice_recognition_status != 'recording'
                 ):
-                    try:
-                        st.session_state.is_recording = False
-                        
-                        # 创建新的语音识别器实例（避免状态问题）
-                        from utils.voice_recognizer_final_baidu import VoiceRecognizer
-                        vr = VoiceRecognizer()
-                        
-                        # 录音3秒（测试中成功的时长）
-                        st.info("正在录音3秒...请说话")
-                        success, msg = vr.record_audio_fixed(duration=3)
-                        
-                        if success:
-                            # 转录
-                            st.info("正在识别中...")
-                            success, text = vr.transcribe_audio()
-                            
-                            if success and text:
-                                st.session_state.voice_text = text
-                                st.session_state.parsed_demand = vr.parse_travel_demand(text)
-                                st.success(f"✅ 识别成功: '{text}'")
-                            else:
-                                error_msg = text if not success else "识别结果为空"
-                                st.session_state.recording_error = error_msg
-                                st.error(f"识别失败: {error_msg}")
-                        else:
-                            st.session_state.recording_error = msg
-                            st.error(f"录音失败: {msg}")
-                            
-                    except Exception as e:
-                        st.session_state.is_recording = False
-                        st.session_state.recording_error = str(e)
-                        st.error(f"录音出错: {str(e)}")
+                    # 停止录音并开始识别
+                    st.session_state.voice_recognition_status = 'processing'
+                    st.rerun()
             
-            with record_col3:
-                # 清除录音按钮
+            with col_clear:
+                # 清除按钮
                 if st.button(
                     "🗑️ 清除",
-                    key="clear_record",
+                    key="clear_recording_new",
                     use_container_width=True,
-                    help="清除当前录音内容"
+                    disabled=st.session_state.voice_recognition_status == 'recording'
                 ):
-                    st.session_state.voice_text = ""
+                    # 清除所有语音数据
+                    st.session_state.voice_recognition_status = 'idle'
+                    st.session_state.voice_recognized_text = ""
                     st.session_state.parsed_demand = None
-                    st.session_state.is_recording = False
-                    st.session_state.recording_error = None
-                    st.success("录音内容已清除")
+                    st.session_state.show_manual_input = False
+                    st.rerun()
             
-            # ========== 显示录音状态 ==========
-            if st.session_state.is_recording:
-                st.markdown("""
-                <div style="
-                    background: rgba(239, 68, 68, 0.1);
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-top: 0.8rem;
-                    margin-bottom: 1rem;
-                    border: 2px solid #ef4444;
-                    text-align: center;
-                ">
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px;">
-                        <span style="color: #ef4444; font-size: 1.5rem;">●</span>
-                        <span style="color: #ef4444; font-weight: 600; font-size: 1.1rem;">正在录音中...</span>
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.9rem;">
-                        请对着麦克风说话，说完后点击"停止并识别"
-                    </div>
-                    <div style="color: #f87171; font-size: 0.8rem; margin-top: 8px;">
-                        🎤 麦克风已开启
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # ========== 执行录音和识别 ==========
+        if st.session_state.voice_recognition_status == 'processing':
+            # 执行录音识别流程
+            with st.spinner("正在识别您的语音..."):
+                # 初始化语音识别器
+                voice_recognizer = get_voice_recognizer()
+                
+                # 录音
+                success, message = voice_recognizer.record_audio(duration=8)
+                
+                if success:
+                    # 转录
+                    transcribe_success, result = voice_recognizer.transcribe_audio()
+                    
+                    if transcribe_success:
+                        st.session_state.voice_recognized_text = result
+                        st.session_state.parsed_demand = voice_recognizer.parse_travel_demand(result)
+                        st.session_state.voice_recognition_status = 'completed'
+                    else:
+                        st.error(f"识别失败: {result}")
+                        st.session_state.voice_recognition_status = 'idle'
+                else:
+                    st.error(f"录音失败: {message}")
+                    st.session_state.voice_recognition_status = 'idle'
             
-            # ========== 显示录音结果 ==========
-            if st.session_state.voice_text and not st.session_state.is_recording:
-                st.markdown("##### 🔊 录音识别结果")
+            st.rerun()
+        
+        # ========== 识别结果显示 ==========
+        if st.session_state.voice_recognition_status == 'completed' and st.session_state.voice_recognized_text:
+            st.markdown("### 📝 识别结果")
+            
+            with st.container():
+                st.markdown("""<div style="background: rgba(96, 165, 250, 0.1); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid #60a5fa;">""", unsafe_allow_html=True)
                 
-                # 显示识别结果
-                st.markdown(f"""
-                <div style="
-                    background: rgba(16, 185, 129, 0.1);
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-top: 0.8rem;
-                    margin-bottom: 1rem;
-                    border-left: 4px solid #10b981;
-                ">
-                    <div style="font-weight: 600; color: #10b981; margin-bottom: 0.5rem;">✅ 识别成功：</div>
-                    <div style="color: #e2e8f0; line-height: 1.5; padding: 0.8rem; background: rgba(0,0,0,0.1); border-radius: 6px; font-size: 1.05rem;">
-                        "{st.session_state.voice_text}"
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"**🗣️ 您说:**")
+                st.info(st.session_state.voice_recognized_text)
                 
-                # 显示解析结果预览
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            # 显示解析结果
+            if st.session_state.parsed_demand:
+                demand = st.session_state.parsed_demand
+                
+                st.markdown("### 🎯 解析出的旅行信息")
+                
+                # 创建信息卡片
+                cols = st.columns(4)
+                
+                with cols[0]:
+                    dest = demand['destination'] or "❓未识别"
+                    color = "#60a5fa" if demand['destination'] else "#94a3b8"
+                    st.markdown(f"""<div style="background: rgba(96, 165, 250, 0.1); border-radius: 8px; padding: 0.8rem; text-align: center; border: 1px solid {color};"><div style="font-size: 0.9rem; color: #94a3b8;">目的地</div><div style="font-size: 1.1rem; font-weight: 600; color: {color};">{dest}</div></div>""", unsafe_allow_html=True)
+                
+                with cols[1]:
+                    days = demand['days']
+                    st.markdown(f"""<div style="background: rgba(16, 185, 129, 0.1); border-radius: 8px; padding: 0.8rem; text-align: center; border: 1px solid #10b981;"><div style="font-size: 0.9rem; color: #94a3b8;">旅行天数</div><div style="font-size: 1.1rem; font-weight: 600; color: #10b981;">{days}天</div></div>""", unsafe_allow_html=True)
+                
+                with cols[2]:
+                    people = demand['people']
+                    st.markdown(f"""<div style="background: rgba(139, 92, 246, 0.1); border-radius: 8px; padding: 0.8rem; text-align: center; border: 1px solid #8b5cf6;"><div style="font-size: 0.9rem; color: #94a3b8;">出行人数</div><div style="font-size: 1.1rem; font-weight: 600; color: #8b5cf6;">{people}人</div></div>""", unsafe_allow_html=True)
+                
+                with cols[3]:
+                    budget = demand['budget'].split('(')[0]
+                    st.markdown(f"""<div style="background: rgba(245, 158, 11, 0.1); border-radius: 8px; padding: 0.8rem; text-align: center; border: 1px solid #f59e0b;"><div style="font-size: 0.9rem; color: #94a3b8;">预算等级</div><div style="font-size: 1.1rem; font-weight: 600; color: #f59e0b;">{budget}</div></div>""", unsafe_allow_html=True)
+                
+                # 检查识别完整性
+                missing_fields = []
+                if not demand['destination']:
+                    missing_fields.append("目的地")
+                
+                if missing_fields:
+                    st.warning(f"⚠️ 未识别到: {', '.join(missing_fields)}")
+                    
+                    # 提供选项
+                    col_retry, col_manual = st.columns(2)
+                    
+                    with col_retry:
+                        if st.button("🔄 重新说话", use_container_width=True):
+                            st.session_state.voice_recognition_status = 'idle'
+                            st.rerun()
+                    
+                    with col_manual:
+                        if st.button("✏️ 手动填写", use_container_width=True):
+                            st.session_state.show_manual_input = True
+                            st.rerun()
+                else:
+                    # 所有字段都识别成功
+                    st.success("✅ 所有信息识别完整！")
+                    
+                    # 自动填充到表单的按钮
+                    if st.button("🚀 自动填充并生成计划", type="primary", use_container_width=True):
+                        # 这里会设置表单值并触发生成
+                        st.session_state.auto_fill_form = True
+                        st.rerun()
+        
+        # ========== 手动输入表单（如果需要）==========
+        if st.session_state.show_manual_input or st.session_state.voice_recognition_status == 'idle':
+            st.markdown("### ✍️ 详细设置")
+            
+            with st.container():
+                st.markdown("""<div style="background: rgba(30, 41, 59, 0.7); border-radius: 10px; padding: 1.2rem; border: 1px solid #334155;">""", unsafe_allow_html=True)
+                
+                # 使用语音识别的结果作为默认值
+                default_values = {
+                    'destination': "",
+                    'days': 3,
+                    'people': 2,
+                    'budget': "舒适型(人均300-600元/天)",
+                    'styles': ["🏖️ 休闲放松", "🏞️ 自然风光"]
+                }
+                
                 if st.session_state.parsed_demand:
                     demand = st.session_state.parsed_demand
-                    
-                    # 检查是否识别到了关键信息
-                    missing_fields = []
-                    if not demand['destination']:
-                        missing_fields.append("目的地")
-                    
-                    if missing_fields:
-                        st.warning(f"⚠️ 未识别到{', '.join(missing_fields)}，请补充信息或重新录音")
-                    
-                    # 显示解析的详细信息
-                    st.markdown("**🔍 系统解析出：**")
-                    
-                    info_cols = st.columns(4)
-                    
-                    with info_cols[0]:
-                        dest_display = demand['destination'] or "❓ 待确认"
-                        dest_color = "#10b981" if demand['destination'] else "#f59e0b"
-                        st.markdown(f"""
-                        <div style="
-                            background: rgba({'16, 185, 129' if demand['destination'] else '245, 158, 11'}, 0.1);
-                            border-radius: 8px;
-                            padding: 0.6rem;
-                            text-align: center;
-                            border: 1px solid rgba({'16, 185, 129' if demand['destination'] else '245, 158, 11'}, 0.3);
-                        ">
-                            <div style="font-size: 0.8rem; color: #94a3b8;">目的地</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: {dest_color};">
-                                {dest_display}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with info_cols[1]:
-                        st.markdown(f"""
-                        <div style="
-                            background: rgba(16, 185, 129, 0.1);
-                            border-radius: 8px;
-                            padding: 0.6rem;
-                            text-align: center;
-                            border: 1px solid rgba(16, 185, 129, 0.3);
-                        ">
-                            <div style="font-size: 0.8rem; color: #94a3b8;">旅行天数</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: #10b981;">
-                                {demand['days']}天
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with info_cols[2]:
-                        st.markdown(f"""
-                        <div style="
-                            background: rgba(16, 185, 129, 0.1);
-                            border-radius: 8px;
-                            padding: 0.6rem;
-                            text-align: center;
-                            border: 1px solid rgba(16, 185, 129, 0.3);
-                        ">
-                            <div style="font-size: 0.8rem; color: #94a3b8;">出行人数</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: #10b981;">
-                                {demand['people']}人
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with info_cols[3]:
-                        st.markdown(f"""
-                        <div style="
-                            background: rgba(16, 185, 129, 0.1);
-                            border-radius: 8px;
-                            padding: 0.6rem;
-                            text-align: center;
-                            border: 1px solid rgba(16, 185, 129, 0.3);
-                        ">
-                            <div style="font-size: 0.8rem; color: #94a3b8;">预算等级</div>
-                            <div style="font-size: 1rem; font-weight: 600; color: #10b981;">
-                                {demand['budget'].split('(')[0]}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # 一键填充按钮
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        if st.button(
-                            "✅ 一键自动填充", 
-                            use_container_width=True, 
-                            type="primary",
-                            key="auto_fill_button"
-                        ):
-                            # 直接设置表单字段的session_state值
-                            st.session_state.form_destination = demand['destination'] or ""
-                            st.session_state.form_days = demand['days']
-                            st.session_state.form_people = demand['people']
-                            
-                            # 处理预算选择
-                            budget_map = {
-                                '经济型(人均300元/天以下)': 0,
-                                '舒适型(人均300-600元/天)': 1,
-                                '豪华型(人均600元/天以上)': 2
-                            }
-                            st.session_state.form_budget_index = budget_map.get(demand['budget'], 1)
-                            
-                            # 设置风格
-                            st.session_state.form_styles = demand['styles']
-                            
-                            st.success(f"✅ 已填充：{demand['destination']} {demand['days']}天 {demand['people']}人")
-                            st.rerun()
-                    
-                    with col2:
-                        if st.button("🔄 重新录音", use_container_width=True, key="rerecord"):
-                            st.session_state.voice_text = ""
-                            st.session_state.parsed_demand = None
-                            st.info("已清除，请重新录音")
-                            st.rerun()
-            
-            # ========== 显示录音错误 ==========
-            if st.session_state.recording_error and not st.session_state.is_recording:
-                st.markdown(f"""
-                <div style="
-                    background: rgba(239, 68, 68, 0.1);
-                    border-radius: 8px;
-                    padding: 1rem;
-                    margin-top: 0.8rem;
-                    margin-bottom: 1rem;
-                    border-left: 4px solid #ef4444;
-                ">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: #ef4444;">❌</span>
-                        <span style="color: #e2e8f0; font-weight: 600;">录音识别失败</span>
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.9rem; margin-top: 0.5rem; padding-left: 24px;">
-                        {st.session_state.recording_error}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # ========== 文本输入作为备选方案 ==========
-            st.markdown("##### 📝 或手动输入")
-            
-            voice_input = st.text_area(
-                "手动输入您的旅行需求",
-                value=st.session_state.voice_text,
-                placeholder="如果您不方便录音，也可以直接在这里输入文字\n示例：我想去北京玩三天，两个人，预算中等，喜欢文化古迹",
-                height=80,
-                key="voice_text_input",
-                label_visibility="collapsed"
-            )
-            
-            if voice_input != st.session_state.voice_text:
-                st.session_state.voice_text = voice_input
-                if voice_input.strip():
-                    try:
-                        from utils.voice_recognizer_final_baidu import VoiceRecognizer
-                        vr = VoiceRecognizer()
-                        st.session_state.parsed_demand = vr.parse_travel_demand(voice_input)
-                    except:
-                        st.session_state.parsed_demand = {
-                            'destination': '',
-                            'days': 3,
-                            'people': 2,
-                            'budget': '舒适型(人均300-600元/天)',
-                            'styles': ['🏖️ 休闲放松', '🏞️ 自然风光']
-                        }
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        # ========== 快捷输入按钮 ==========
-        st.markdown("##### 💡 快捷输入示例")
-        
-        quick_cols = st.columns(3)
-        examples = [
-            ("北京文化游", "我想去北京玩三天，两个人，中等预算，喜欢文化古迹"),
-            ("上海美食行", "上海周末美食之旅，两天时间，一个人"),
-            ("青岛亲子游", "青岛七天亲子度假，预算宽松，三口之家")
-        ]
-        
-        for idx, (title, example) in enumerate(examples):
-            with quick_cols[idx]:
-                if st.button(
-                    title,
-                    key=f"quick_example_{idx}",
-                    use_container_width=True,
-                    help=f"点击使用：{example}"
-                ):
-                    st.session_state.voice_text = example
-                    try:
-                        from utils.voice_recognizer_final_baidu import VoiceRecognizer
-                        vr = VoiceRecognizer()
-                        st.session_state.parsed_demand = vr.parse_travel_demand(example)
-                        st.success("示例已加载，点击'一键自动填充'")
-                    except:
-                        if '北京' in example:
-                            dest = '北京'
-                            days = 3
-                            people = 2
-                        elif '上海' in example:
-                            dest = '上海'
-                            days = 2
-                            people = 1
-                        else:
-                            dest = '青岛'
-                            days = 7
-                            people = 3
-                        
-                        st.session_state.parsed_demand = {
-                            'destination': dest,
-                            'days': days,
-                            'people': people,
-                            'budget': '舒适型(人均300-600元/天)',
-                            'styles': ['🎨 文化探索'] if '文化' in example else ['🍜 美食之旅'] if '美食' in example else ['👨‍👩‍👦 家庭亲子']
-                        }
-                    st.rerun()
-        
-        st.markdown("---")
-        st.markdown("#### ✍️ 详细设置（语音识别结果已自动填充）")
-        
-        # ========== 表单部分 - 使用session_state的值 ==========
-        # 使用卡片容器美化表单
-        with st.container():
-            st.markdown("""
-            <div style="
-                background: rgba(30, 41, 59, 0.7);
-                border-radius: 10px;
-                padding: 1.2rem;
-                border: 1px solid #334155;
-            ">
-            """, unsafe_allow_html=True)
-            
-            # 目的地输入
-            destination = st.text_input(
-                "旅行目的地 *",
-                value=st.session_state.form_destination,
-                placeholder="请输入城市或景点名称",
-                help="请填写具体的旅行目的地",
-                key="destination_input"
-            )
-            
-            # 基本参数
-            col1, col2 = st.columns(2)
-            with col1:
-                days = st.number_input(
-                    "旅行天数 *", 
-                    1, 30, 
-                    value=st.session_state.form_days,
-                    help="计划旅行的总天数",
-                    key="days_input"
-                )
-            
-            with col2:
-                people = st.number_input(
-                    "出行人数 *", 
-                    1, 20, 
-                    value=st.session_state.form_people,
-                    help="一起旅行的人数",
-                    key="people_input"
-                )
-            
-            # ========== 出行日期部分 ==========
-            st.markdown("**📅 出行日期**")
-            today = dt.now().date()  # 使用 dt 而不是 datetime
-            
-            col_date1, col_date2 = st.columns(2)
-            with col_date1:
-                start_date = st.date_input(
-                    "出发日期",
-                    value=today,
-                    min_value=today,
-                    max_value=today + timedelta(days=365),
-                    format="YYYY/MM/DD",
-                    help="选择出发日期",
-                    key="start_date_input",
-                    label_visibility="collapsed"
-                )
-            
-            with col_date2:
-                end_date = st.date_input(
-                    "结束日期",
-                    value=today + timedelta(days=days-1),
-                    min_value=start_date,
-                    max_value=start_date + timedelta(days=30),
-                    format="YYYY/MM/DD",
-                    help="选择结束日期",
-                    key="end_date_input",
-                    label_visibility="collapsed"
-                )
-            
-            # 日期验证提示
-            if end_date < start_date:
-                end_date = start_date + timedelta(days=days-1)
-                st.warning("⚠️ 结束日期已自动调整为出发日期之后")
-            
-            actual_days = (end_date - start_date).days + 1
-            if actual_days != days:
-                days = actual_days
-                st.info(f"📊 实际旅行天数: {days}天")
-            
-            # 预算选择
-            budget_options = ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"]
-            
-            budget_index = st.session_state.form_budget_index
-            if budget_index >= len(budget_options):
-                budget_index = 1
-            
-            budget = st.selectbox(
-                "预算等级 *",
-                budget_options,
-                index=budget_index,
-                help="根据您的消费能力选择合适的预算等级",
-                key="budget_input"
-            )
-            
-            # 旅行风格选择
-            travel_styles = [
-                "🏖️ 休闲放松", "🎨 文化探索", "🍜 美食之旅", 
-                "🏞️ 自然风光", "🎢 冒险刺激", "👨‍👩‍👦 家庭亲子",
-                "💖 情侣浪漫", "📸 摄影打卡", "🛍️ 购物体验", "🏛️ 历史遗迹"
-            ]
-            
-            style = st.multiselect(
-                "旅行风格偏好（可多选）",
-                travel_styles,
-                default=st.session_state.form_styles,
-                help="选择您感兴趣的旅行体验类型",
-                key="style_input"
-            )
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-            # 更新session_state中的表单值（当用户手动修改时）
-            if destination != st.session_state.form_destination:
-                st.session_state.form_destination = destination
-            if days != st.session_state.form_days:
-                st.session_state.form_days = days
-            if people != st.session_state.form_people:
-                st.session_state.form_people = people
-            
-            # 更新预算索引
-            new_budget_index = budget_options.index(budget) if budget in budget_options else 1
-            if new_budget_index != st.session_state.form_budget_index:
-                st.session_state.form_budget_index = new_budget_index
-            
-            # 更新风格
-            if style != st.session_state.form_styles:
-                st.session_state.form_styles = style
-        
-        # ========== 高级选项 ==========
-        with st.expander("⚙️ 高级选项", expanded=False):
-            cols = st.columns(2)
-            
-            with cols[0]:
-                hotel_preference = st.selectbox(
-                    "住宿偏好", 
-                    ["无特殊要求", "靠近景点", "交通便利", "安静区域", "特色民宿", "商务酒店"],
-                    help="选择您对住宿的特别要求",
-                    key="hotel_preference_final"
+                    default_values['destination'] = demand['destination'] or ""
+                    default_values['days'] = demand['days']
+                    default_values['people'] = demand['people']
+                    default_values['budget'] = demand['budget']
+                    default_values['styles'] = demand['styles']
+                
+                # 目的地
+                destination = st.text_input(
+                    "旅行目的地",
+                    value=default_values['destination'],
+                    placeholder="例如：北京、上海、杭州",
+                    key="destination_final",
+                    help="请输入具体的城市或景点名称"
                 )
                 
-                include_hotel_links = st.checkbox(
-                    "包含酒店推荐", 
-                    value=True, 
-                    help="在行程中包含推荐酒店信息",
-                    key="hotel_checkbox_final"
+                # 基本参数
+                col1, col2 = st.columns(2)
+                with col1:
+                    days = st.number_input(
+                        "旅行天数",
+                        1, 30, default_values['days'],
+                        key="days_final",
+                        help="计划旅行的总天数"
+                    )
+                
+                with col2:
+                    people = st.number_input(
+                        "出行人数",
+                        1, 20, default_values['people'],
+                        key="people_final",
+                        help="一起旅行的人数"
+                    )
+                
+                # 出行日期
+                st.markdown("**📅 出行日期**")
+                today = datetime.now().date()
+                
+                col_date1, col_date2 = st.columns(2)
+                with col_date1:
+                    start_date = st.date_input(
+                        "出发日期",
+                        value=today,
+                        min_value=today,
+                        max_value=today + timedelta(days=365),
+                        format="YYYY/MM/DD",
+                        key="start_date_final",
+                        label_visibility="collapsed"
+                    )
+                
+                with col_date2:
+                    end_date = st.date_input(
+                        "结束日期",
+                        value=today + timedelta(days=days-1),
+                        min_value=start_date,
+                        max_value=start_date + timedelta(days=30),
+                        format="YYYY/MM/DD",
+                        key="end_date_final",
+                        label_visibility="collapsed"
+                    )
+                
+                # 预算
+                budget = st.selectbox(
+                    "预算等级",
+                    ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"],
+                    index=["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"].index(default_values['budget']) 
+                    if default_values['budget'] in ["经济型(人均300元/天以下)", "舒适型(人均300-600元/天)", "豪华型(人均600元/天以上)"] else 1,
+                    key="budget_final"
                 )
                 
-                generate_story = st.checkbox(
-                    "生成旅行叙事故事", 
-                    value=True, 
-                    help="生成生动的旅行故事描述",
-                    key="story_checkbox_final"
+                # 旅行风格
+                travel_styles = [
+                    "🏖️ 休闲放松", "🎨 文化探索", "🍜 美食之旅", 
+                    "🏞️ 自然风光", "🎢 冒险刺激", "👨‍👩‍👧‍👦 家庭亲子",
+                    "💖 情侣浪漫", "📸 摄影打卡"
+                ]
+                
+                style = st.multiselect(
+                    "旅行风格偏好（可多选）",
+                    travel_styles,
+                    default=default_values['styles'],
+                    key="style_final"
                 )
+                
+                st.markdown("</div>", unsafe_allow_html=True)
             
-            with cols[1]:
-                save_plan = st.checkbox(
-                    "保存本次行程", 
-                    value=True, 
-                    help="将生成的行程保存到本地文件",
-                    key="save_checkbox_final"
-                )
-                
-                # 语音播报设置
-                st.markdown("**🔊 语音播报设置**")
-                enable_voice_output = st.toggle(
-                    "启用语音播报", 
-                    value=True, 
-                    help="生成行程后用语音播报关键信息",
-                    key="enable_voice_output"
-                )
-                
-                voice_style = st.selectbox(
-                    "播报音色选择",
-                    ["年轻女声", "专业男声", "温暖女声", "沉稳男声"],
-                    index=0,
-                    help="选择您喜欢的语音播报风格",
-                    key="voice_style"
-                )
-        
-        # ========== 生成按钮 ==========
-        st.markdown("---")
-        
-        generate_btn = st.button(
-            "🚀 开始生成个性化旅行计划", 
-            type="primary", 
-            use_container_width=True,
-            disabled=not destination,
-            help="点击开始生成您的专属旅行计划",
-            key="generate_button_final"
-        )
-        
-        # 提示信息
-        if not destination:
-            st.markdown("""
-            <div style="
-                text-align: center;
-                padding: 1rem;
-                background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%);
-                border-radius: 10px;
-                border: 1px dashed #60a5fa;
-                margin-top: 1rem;
-            ">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div>
-                <div style="font-weight: 600; color: #e2e8f0; margin-bottom: 0.3rem;">请先填写旅行目的地</div>
-                <div style="color: #94a3b8; font-size: 0.9rem;">
-                    您可以使用上方语音输入或直接手动填写
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # 生成按钮
+            st.markdown("---")
+            
+            generate_disabled = not destination.strip()
+            
+            if st.button(
+                "🚀 生成个性化旅行计划",
+                type="primary",
+                use_container_width=True,
+                disabled=generate_disabled,
+                key="generate_final"
+            ):
+                # 设置用户输入并触发生成
+                st.session_state.current_user_input = {
+                    'destination': destination,
+                    'days': days,
+                    'people': people,
+                    'budget': budget,
+                    'style': style,
+                    'start_date': start_date.strftime("%Y-%m-%d"),
+                    'end_date': end_date.strftime("%Y-%m-%d"),
+                    'hotel_preference': "无特殊要求",
+                    'include_hotel_links': True,
+                    'generate_story': True,
+                    'save_plan': True,
+                    'enable_voice_output': True,
+                    'voice_style': "年轻女声"
+                }
+                st.session_state.should_generate = True
+                st.rerun()
+            
+            if generate_disabled:
+                st.markdown("""<div style="text-align: center; padding: 1rem; background: linear-gradient(135deg, rgba(96, 165, 250, 0.1) 0%, rgba(167, 139, 250, 0.1) 100%); border-radius: 10px; border: 1px dashed #60a5fa; margin-top: 1rem;"><div style="font-size: 2rem; margin-bottom: 0.5rem;">🎯</div><div style="font-weight: 600; color: #e2e8f0; margin-bottom: 0.3rem;">请先填写旅行目的地</div><div style="color: #94a3b8; font-size: 0.9rem;">您可以使用语音输入或手动填写</div></div>""", unsafe_allow_html=True)
     
-    # 返回所有参数
-    return {
-        'destination': destination,
-        'days': days,
-        'people': people,
-        'budget': budget,
-        'style': style,
-        'hotel_preference': hotel_preference,
-        'include_hotel_links': include_hotel_links,
-        'generate_story': generate_story,
-        'save_plan': save_plan,
-        'generate_btn': generate_btn,
-        'enable_voice_output': enable_voice_output,
-        'voice_style': voice_style,
-        'start_date': start_date.strftime("%Y-%m-%d") if start_date else dt.now().strftime("%Y-%m-%d"),
-        'end_date': end_date.strftime("%Y-%m-%d") if end_date else (dt.now() + timedelta(days=max(1, days)-1)).strftime("%Y-%m-%d")
+    # 返回用户输入
+    return st.session_state.get('current_user_input', None)
+
+def create_voice_output_panel(generation_result, user_input):
+    """创建语音输出面板"""
+    if not generation_result or not user_input.get('enable_voice_output', True):
+        return
+    
+    st.markdown("---")
+    st.markdown("### 🔊 语音播报行程")
+    
+    # 获取语音合成器
+    voice_synth = get_voice_synthesizer()
+    
+    # 设置音色
+    voice_map = {
+        "年轻女声": "zh-CN-XiaoxiaoNeural",
+        "专业男声": "zh-CN-YunxiNeural",
+        "温暖女声": "zh-CN-XiaoyiNeural", 
+        "沉稳男声": "zh-CN-YunjianNeural"
     }
+    voice_synth.voice = voice_map.get(user_input.get('voice_style', '年轻女声'), "zh-CN-XiaoxiaoNeural")
+    
+    # 行程信息
+    plan = generation_result.get('plan', {})
+    city_name = generation_result.get('city_name', '目的地')
+    days = user_input.get('days', 3)
+    
+    # 创建播报按钮
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📢 播报概览", use_container_width=True, key="voice_overview"):
+            overview = plan.get('overview', f"为您规划了{days}天{city_name}的精彩旅行。")
+            with st.spinner("生成语音中..."):
+                audio_base64 = voice_synth.synthesize(overview[:300])
+                if audio_base64:
+                    audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                    st.markdown(audio_html, unsafe_allow_html=True)
+                else:
+                    st.warning("语音生成失败，请检查网络连接")
+    
+    with col2:
+        if st.button("📍 播报安排", use_container_width=True, key="voice_daily"):
+            daily_text = f"{city_name}{days}日游安排如下："
+            daily_plan = plan.get('daily_plan', [])
+            if daily_plan:
+                for i, day in enumerate(daily_plan[:2]):  # 只播报前两天
+                    day_num = day.get('day', i+1)
+                    morning = day.get('morning', '自由活动')[:15]
+                    afternoon = day.get('afternoon', '自由活动')[:15]
+                    daily_text += f"第{day_num}天，上午{morning}，下午{afternoon}。"
+            else:
+                daily_text = f"{city_name}{days}天行程已规划完成。"
+            
+            with st.spinner("生成语音中..."):
+                audio_base64 = voice_synth.synthesize(daily_text[:400])
+                if audio_base64:
+                    audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                    st.markdown(audio_html, unsafe_allow_html=True)
+                else:
+                    st.warning("语音生成失败")
+    
+    with col3:
+        if st.button("💰 播报预算", use_container_width=True, key="voice_budget"):
+            budget_text = plan.get('budget_advice', f"本次{city_name}{days}天旅行的详细预算建议已生成。")
+            with st.spinner("生成语音中..."):
+                audio_base64 = voice_synth.synthesize(budget_text[:200])
+                if audio_base64:
+                    audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+                    st.markdown(audio_html, unsafe_allow_html=True)
+                else:
+                    st.warning("语音生成失败")
+    
+    # 自动播放欢迎语
+    if user_input.get('auto_play', True) and 'voice_welcome_played' not in st.session_state:
+        st.session_state.voice_welcome_played = True
+        welcome_text = f"欢迎使用语音旅行助手，已为您生成{city_name}{days}天的个性化旅行计划。"
+        audio_base64 = voice_synth.synthesize(welcome_text)
+        if audio_base64:
+            audio_html = voice_synth.create_audio_player(audio_base64, autoplay=True)
+            st.markdown(audio_html, unsafe_allow_html=True)
 
 # ========== 添加语音解析函数 ==========
 def parse_voice_demand(text):
